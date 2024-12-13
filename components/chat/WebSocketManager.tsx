@@ -18,8 +18,22 @@ export function WebSocketManager({ url, onMessage, onStatusChange, onError }: We
     }
 
     onStatusChange('connecting')
-    const ws = new WebSocket(url)
 
+    const token = localStorage.getItem('fortify_access') // توکن را از localStorage می‌خوانیم
+    if (!token) {
+      onError('No authentication token found')
+      return
+    }
+
+    // اضافه کردن توکن به URL به عنوان پارامتر
+    const websocketUrlWithToken = `${url}?token=${token}`
+
+    // ایجاد WebSocket با URL جدید که توکن در آن قرار دارد
+    const ws = new WebSocket(websocketUrlWithToken)  // ایجاد WebSocket با توکن در URL
+    setupWebSocket(ws)  // پیکربندی WebSocket
+  }
+
+  const setupWebSocket = (ws: WebSocket) => {
     ws.onopen = () => {
       console.log('WebSocket Connected')
       onStatusChange('connected')
@@ -73,4 +87,3 @@ export function WebSocketManager({ url, onMessage, onStatusChange, onError }: We
 
   return null
 }
-

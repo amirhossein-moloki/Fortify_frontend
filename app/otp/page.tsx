@@ -71,9 +71,10 @@ export default function VerificationCodePage() {
         // اگر درخواست موفقیت‌آمیز بود
         setSuccessMessage('Login successful!')
 
-        // ذخیره توکن‌ها در localStorage
+        // ذخیره توکن‌ها و نام کاربری در localStorage
         localStorage.setItem('fortify_access', data.access_token)
         localStorage.setItem('fortify_refresh', data.refresh_token)
+        localStorage.setItem('fortify_username', data.username)  // ذخیره نام کاربری
 
         // هدایت به صفحه اصلی با استفاده از window.location.href
         window.location.href = '/'  // صفحه اصلی

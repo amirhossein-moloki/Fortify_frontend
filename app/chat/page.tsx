@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Search, Moon, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, Edit, Trash2 } from 'lucide-react'
+import { Menu, Search, Moon, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { WebSocketManager } from '@/components/chat/WebSocketManager'
+import { WebSocketManager } from '@/utils/WebSocketManager'
+import { MessageBubble } from '@/components/chat/MessageBubble'
 
 interface Chat {
   id: number
@@ -50,13 +51,12 @@ export default function ChatPage() {
   const [nightMode, setNightMode] = useState(false)
   const [chats, setChats] = useState<Chat[]>([])
   const [messages, setMessages] = useState<Message[]>([])
-  const [inputMessage, setInputMessage] = useState('')
+  const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [wsStatus, setWsStatus] = useState('disconnected'); // Added wsStatus
-  const [wsError, setWsError] = useState<string | null>(null) // Added wsError state
-  const webSocketRef = useRef<WebSocket | null>(null)
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
   const router = useRouter()
+  const webSocketManagerRef = useRef<WebSocketManager | null>(null)
 
   useEffect(() => {
     const accessToken = localStorage.getItem('fortify_access')
@@ -68,15 +68,39 @@ export default function ChatPage() {
     }
 
     fetchChats()
+
+    webSocketManagerRef.current = new WebSocketManager(handleWebSocketMessage)
+
+    return () => {
+      webSocketManagerRef.current?.disconnect()
+    }
   }, [router])
 
-  useEffect(() => {
-    if (selectedChat) {
-      setWsStatus('connecting') // Update ws status on connection
-    } else {
-      setWsStatus('disconnected') // Update ws status on disconnection
+  const handleWebSocketMessage = (data: any) => {
+    switch (data.action) {
+      case 'send':
+        setMessages(prevMessages => [...prevMessages, {
+          id: data.message_id,
+          content: data.message,
+          sender: data.sender,
+          sender_profile_picture: data.sender_profile_picture,
+          sender_bio: data.sender_bio,
+          timestamp: data.timestamp,
+          isOwn: data.sender === localStorage.getItem('fortify_username')
+        }])
+        break
+      case 'edit':
+        setMessages(prevMessages => prevMessages.map(msg =>
+          msg.id === data.message_id ? { ...msg, content: data.message } : msg
+        ))
+        break
+      case 'delete':
+        setMessages(prevMessages => prevMessages.filter(msg => msg.id !== data.message_id))
+        break
+      default:
+        console.error('Unknown action:', data.action)
     }
-  }, [selectedChat])
+  }
 
   const fetchChats = async () => {
     const token = localStorage.getItem('fortify_access')
@@ -94,26 +118,15 @@ export default function ChatPage() {
           Authorization: `Bearer ${token}`
         }
       })
-      console.log('API Response:', response.data)
       setChats(response.data)
     } catch (error) {
       console.error('Error fetching chats:', error)
       if (axios.isAxiosError(error)) {
-        if (error.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          if (error.response.status === 401) {
-            setError('Unauthorized. Please log in again.')
-            router.push('/login')
-          } else {
-            setError(`Server error: ${error.response.status}. Please try again.`)
-          }
-        } else if (error.request) {
-          // The request was made but no response was received
-          setError('No response from server. Please check your internet connection and try again.')
+        if (error.response?.status === 401) {
+          setError('Unauthorized. Please log in again.')
+          router.push('/login')
         } else {
-          // Something happened in setting up the request that triggered an Error
-          setError('An unexpected error occurred. Please try again.')
+          setError(`Server error: ${error.response?.status}. Please try again.`)
         }
       } else {
         setError('An unknown error occurred. Please try again.')
@@ -123,101 +136,40 @@ export default function ChatPage() {
     }
   }
 
-
-  const handleWebSocketMessage = (data: any) => {
-    switch (data.action) {
-      case 'send':
-        setMessages(prevMessages => [...prevMessages, {
-          id: data.message_id,
-          content: data.message,
-          sender: data.sender,
-          sender_profile_picture: data.sender_profile_picture,
-          sender_bio: data.sender_bio,
-          timestamp: new Date().toLocaleTimeString(),
-          isOwn: data.sender === localStorage.getItem('username'),
-          file: data.file
-        }])
-        break
-      case 'edit':
-        setMessages(prevMessages => prevMessages.map(msg => 
-          msg.id === data.message_id ? { ...msg, content: data.message } : msg
-        ))
-        break
-      case 'delete':
-        setMessages(prevMessages => prevMessages.filter(msg => msg.id !== data.message_id))
-        break
-      case 'read':
-        // Handle read receipts if needed
-        break
-    }
-  }
-
-  const sendMessage = () => {
-    if (inputMessage.trim() && wsStatus === 'connected') {
-      const message = {
-        action: 'send',
-        message: inputMessage
-      }
-      // Use the WebSocket instance from WebSocketManager
-      const ws = (document.querySelector('[data-testid="websocket-manager"]') as any)?.ws
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message))
-        setInputMessage('')
-      } else {
-        console.error('WebSocket is not connected')
-        // Optionally, show an error message to the user
-      }
-    }
-  }
-
-  const editMessage = (messageId: number, newContent: string) => {
-    if (wsStatus === 'connected') { // Check WebSocket connection status
-      const message = {
-        action: 'edit',
-        message_id: messageId,
-        new_message: newContent
-      }
-      const ws = (document.querySelector('[data-testid="websocket-manager"]') as any)?.ws
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message))
-      } else {
-        console.error('WebSocket is not connected')
-      }
-    }
-  }
-
-  const deleteMessage = (messageId: number) => {
-    if (wsStatus === 'connected') { // Check WebSocket connection status
-      const message = {
-        action: 'delete',
-        message_id: messageId
-      }
-      const ws = (document.querySelector('[data-testid="websocket-manager"]') as any)?.ws
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message))
-      } else {
-        console.error('WebSocket is not connected')
-      }
-    }
-  }
-
-  const markAsRead = (messageId: number) => {
-    if (wsStatus === 'connected') { // Check WebSocket connection status
-      const message = {
-        action: 'read',
-        message_id: messageId
-      }
-      const ws = (document.querySelector('[data-testid="websocket-manager"]') as any)?.ws
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message))
-      } else {
-        console.error('WebSocket is not connected')
-      }
-    }
-  }
-
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen)
+  }
+
+  const handleChatSelect = (chatId: number) => {
+    setSelectedChat(chatId)
+    const token = localStorage.getItem('fortify_access')
+    if (token && webSocketManagerRef.current) {
+      webSocketManagerRef.current.disconnect()
+      webSocketManagerRef.current.connect(chatId, token)
+    }
+  }
+
+  const handleSendMessage = () => {
+    if (newMessage.trim() && webSocketManagerRef.current) {
+      if (editingMessageId) {
+        webSocketManagerRef.current.editMessage(editingMessageId, newMessage.trim())
+        setEditingMessageId(null)
+      } else {
+        webSocketManagerRef.current.sendMessage(newMessage.trim())
+      }
+      setNewMessage('')
+    }
+  }
+
+  const handleStartEdit = (messageId: number, content: string) => {
+    setEditingMessageId(messageId)
+    setNewMessage(content)
+  }
+
+  const handleDeleteMessage = (messageId: number) => {
+    if (webSocketManagerRef.current) {
+      webSocketManagerRef.current.deleteMessage(messageId)
+    }
   }
 
   if (loading) {
@@ -264,7 +216,7 @@ export default function ChatPage() {
           {chats.map((chat) => (
             <button
               key={chat.id}
-              onClick={() => setSelectedChat(chat.id)}
+              onClick={() => handleChatSelect(chat.id)}
               className={cn(
                 "w-full p-4 flex items-center space-x-3 hover:bg-gray-800/50",
                 selectedChat === chat.id && "bg-gray-800/50"
@@ -303,7 +255,7 @@ export default function ChatPage() {
           <div className="p-4 border-b border-gray-800 flex justify-between items-center">
             <h2 className="text-xl font-bold text-white">Menu</h2>
             <button
-              onClick={() => setSidebarOpen(false)}
+              onClick={()=> setSidebarOpen(false)}
               className="p-2 hover:bg-gray-700 rounded-lg"
             >
               <X className="w-5 h-5 text-gray-400" />
@@ -355,128 +307,71 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Chat View */}
-      <div className="flex-1 flex flex-col">
+      {/* Main Chat Area */}
+      <div className="flex-1 bg-[#1F1D2B] flex flex-col">
         {selectedChat ? (
           <>
-            <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+            {/* Chat Header */}
+            <div className="p-4 border-b border-gray-800">
               <div className="flex items-center space-x-3">
-                <button
-                  className="md:hidden p-2 hover:bg-gray-700 rounded-lg"
-                  onClick={() => setSelectedChat(null)}
-                >
-                  <Menu className="w-5 h-5 text-gray-400" />
-                </button>
                 <img
-                  src={`http://localhost:8000${chats.find(chat => chat.id === selectedChat)?.chat_type === 'direct' 
-                    ? chats.find(chat => chat.id === selectedChat)?.other_user.profile_picture 
-                    : chats.find(chat => chat.id === selectedChat)?.group_image}`}
-                  alt="Chat Avatar"
+                  src={`http://localhost:8000${chats.find(c => c.id === selectedChat)?.other_user.profile_picture}`}
+                  alt={chats.find(c => c.id === selectedChat)?.other_user.username}
                   className="w-10 h-10 rounded-full"
                 />
                 <div>
-                  <h3 className="text-white font-medium">
-                    {chats.find(chat => chat.id === selectedChat)?.chat_type === 'direct'
-                      ? chats.find(chat => chat.id === selectedChat)?.other_user.username
-                      : chats.find(chat => chat.id === selectedChat)?.group_name}
-                  </h3>
+                  <h2 className="text-white font-medium">
+                    {chats.find(c => c.id === selectedChat)?.other_user.username}
+                  </h2>
                   <p className="text-gray-400 text-sm">Online</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 p-4 overflow-y-auto">
-              {wsError && (
-                <div className="p-2 bg-red-500 text-white text-center">
-                  {wsError}
-                </div>
-              )}
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={cn(
-                    "flex items-start space-x-3 mb-4",
-                    msg.isOwn && "flex-row-reverse space-x-reverse"
-                  )}
-                >
-                  <img
-                    src={`http://localhost:8000${msg.sender_profile_picture}`}
-                    alt={msg.sender}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div className="max-w-[80%]">
-                    <div className="text-sm text-gray-400">{msg.timestamp}</div>
-                    <div
-                      className={cn(
-                        "text-sm p-3 rounded-lg",
-                        msg.isOwn ? "bg-purple-500 text-white" : "bg-gray-800 text-white"
-                      )}
-                    >
-                      {msg.content}
-                      {msg.file && (
-                        <div className="mt-2 text-xs">
-                          <a href="#" className="text-blue-400 hover:underline">
-                            {msg.file.file_name} ({(msg.file.file_size / 1024).toFixed(2)} KB)
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                    {msg.isOwn && (
-                      <div className="flex justify-end mt-1 space-x-2">
-                        <button onClick={() => editMessage(msg.id, prompt('Edit message:', msg.content) || msg.content)} className="text-gray-400 hover:text-white">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => deleteMessage(msg.id)} className="text-gray-400 hover:text-white">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  id={message.id}
+                  content={message.content}
+                  sender={message.sender}
+                  sender_profile_picture={message.sender_profile_picture}
+                  timestamp={message.timestamp}
+                  isOwn={message.isOwn}
+                  onEdit={(newContent) => handleStartEdit(message.id, newContent)}
+                  onDelete={() => handleDeleteMessage(message.id)}
+                />
               ))}
             </div>
 
+            {/* Message Input */}
             <div className="p-4 border-t border-gray-800">
-              <div className="flex items-center space-x-3">
-                <button className="p-2 hover:bg-gray-700 rounded-lg">
-                  <Paperclip className="w-5 h-5 text-gray-400" />
+              <div className="flex items-center space-x-2">
+                <button className="p-2 text-gray-400 hover:text-white">
+                  <Paperclip className="w-5 h-5" />
                 </button>
                 <input
                   type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder="Type a message"
-                  className="flex-1 bg-[#1F1D2B] text-white rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder={editingMessageId ? "پیام را ویرایش کنید..." : "پیام خود را بنویسید..."}
+                  className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
-                <button 
-                  onClick={sendMessage}
-                  className="p-2 hover:bg-gray-700 rounded-lg"
+                <button
+                  onClick={handleSendMessage}
+                  className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
                 >
-                  <Send className="w-5 h-5 text-gray-400" />
+                  <Send className="w-5 h-5" />
                 </button>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-400">
-            Please select a chat to start messaging
+          <div className="flex items-center justify-center h-full text-white">
+            یک چت را برای شروع گفتگو انتخاب کنید
           </div>
-        )}
-        {selectedChat && (
-          <WebSocketManager
-            url={`ws://localhost:8000/ws/chat/${selectedChat}/?token=${localStorage.getItem('fortify_access')}`}
-            onMessage={handleWebSocketMessage}
-            onStatusChange={(status) => {
-              setWsStatus(status)
-              if (status === 'disconnected') {
-                setWsError('WebSocket disconnected. Trying to reconnect...')
-              } else {
-                setWsError(null)
-              }
-            }}
-            onError={(error) => setWsError(`WebSocket error: ${error}`)}
-          />
         )}
       </div>
     </div>
