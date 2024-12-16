@@ -1,12 +1,19 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Search, Moon, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip } from 'lucide-react'
+import { Menu, Search, Moon, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { WebSocketManager } from '@/utils/WebSocketManager'
 import { MessageBubble } from '@/components/chat/MessageBubble'
+
+declare global {
+  interface Window {
+    AudioContext: typeof AudioContext
+    webkitAudioContext: typeof AudioContext
+  }
+}
 
 interface Chat {
   id: number
@@ -38,6 +45,9 @@ interface Message {
   sender_bio: string
   timestamp: string
   isOwn: boolean
+  is_edited: boolean
+  is_deleted: boolean
+  read_by: string[]
   file?: {
     file_name: string
     file_type: string
@@ -55,8 +65,14 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
+  const [isMobileView, setIsMobileView] = useState(false)
   const router = useRouter()
   const webSocketManagerRef = useRef<WebSocketManager | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const sendAudioBufferRef = useRef<AudioBuffer | null>(null)
+  const receiveAudioBufferRef = useRef<AudioBuffer | null>(null)
+  const editAudioBufferRef = useRef<AudioBuffer | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const accessToken = localStorage.getItem('fortify_access')
@@ -71,32 +87,106 @@ export default function ChatPage() {
 
     webSocketManagerRef.current = new WebSocketManager(handleWebSocketMessage)
 
+    // Initialize AudioContext and load audio files
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext
+    audioContextRef.current = new AudioContextClass()
+
+    const loadAudio = async (url: string) => {
+      const response = await fetch(url)
+      const arrayBuffer = await response.arrayBuffer()
+      return await audioContextRef.current!.decodeAudioData(arrayBuffer)
+    }
+
+    Promise.all([
+      loadAudio('/send.mp3'),
+      loadAudio('/receive.mp3'),
+      loadAudio('/edit.mp3')
+    ]).then(([sendBuffer, receiveBuffer, editBuffer]) => {
+      sendAudioBufferRef.current = sendBuffer
+      receiveAudioBufferRef.current = receiveBuffer
+      editAudioBufferRef.current = editBuffer
+    }).catch(error => {
+      console.error('Error loading audio files:', error)
+    })
+
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth < 768)
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+
     return () => {
       webSocketManagerRef.current?.disconnect()
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+      }
+      window.removeEventListener('resize', handleResize)
     }
   }, [router])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const playSound = (buffer: AudioBuffer | null) => {
+    if (buffer && audioContextRef.current) {
+      const source = audioContextRef.current.createBufferSource()
+      source.buffer = buffer
+      source.connect(audioContextRef.current.destination)
+      source.start()
+    }
+  }
 
   const handleWebSocketMessage = (data: any) => {
     switch (data.action) {
       case 'send':
-        setMessages(prevMessages => [...prevMessages, {
-          id: data.message_id,
-          content: data.message,
-          sender: data.sender,
-          sender_profile_picture: data.sender_profile_picture,
-          sender_bio: data.sender_bio,
-          timestamp: data.timestamp,
-          isOwn: data.sender === localStorage.getItem('fortify_username')
-        }])
-        break
+        setMessages(prevMessages => {
+          if (prevMessages.some(msg => msg.id === data.message_id)) {
+            return prevMessages;
+          }
+          if (data.sender !== localStorage.getItem('fortify_username')) {
+            playSound(receiveAudioBufferRef.current)
+          } else {
+            playSound(sendAudioBufferRef.current)
+          }
+          return [...prevMessages, {
+            id: data.message_id,
+            content: data.message,
+            sender: data.sender,
+            sender_profile_picture: data.sender_profile_picture,
+            sender_bio: data.sender_bio,
+            timestamp: data.timestamp,
+            isOwn: data.sender === localStorage.getItem('fortify_username'),
+            is_edited: data.is_edited,
+            is_deleted: data.is_deleted,
+            read_by: data.read_by,
+            file: data.file
+          }];
+        });
+        break;
       case 'edit':
         setMessages(prevMessages => prevMessages.map(msg =>
-          msg.id === data.message_id ? { ...msg, content: data.message } : msg
-        ))
-        break
+          msg.id === data.message_id ? { ...msg, content: data.message, is_edited: data.is_edited } : msg
+        ));
+        if (data.sender !== localStorage.getItem('fortify_username')) {
+          playSound(editAudioBufferRef.current)
+        }
+        break;
       case 'delete':
-        setMessages(prevMessages => prevMessages.filter(msg => msg.id !== data.message_id))
-        break
+        setMessages(prevMessages => prevMessages.map(msg =>
+          msg.id === data.message_id ? { ...msg, is_deleted: true } : msg
+        ));
+        break;
+      case 'read':
+        setMessages(prevMessages => prevMessages.map(msg =>
+          msg.id === data.message_id ? { ...msg, read_by: data.read_by } : msg
+        ));
+        break;
       default:
         console.error('Unknown action:', data.action)
     }
@@ -152,12 +242,12 @@ export default function ChatPage() {
   const handleSendMessage = () => {
     if (newMessage.trim() && webSocketManagerRef.current) {
       if (editingMessageId) {
-        webSocketManagerRef.current.editMessage(editingMessageId, newMessage.trim())
-        setEditingMessageId(null)
+        webSocketManagerRef.current.editMessage(editingMessageId, newMessage.trim());
+        setEditingMessageId(null);
       } else {
-        webSocketManagerRef.current.sendMessage(newMessage.trim())
+        webSocketManagerRef.current.sendMessage(newMessage.trim());
       }
-      setNewMessage('')
+      setNewMessage('');
     }
   }
 
@@ -168,9 +258,18 @@ export default function ChatPage() {
 
   const handleDeleteMessage = (messageId: number) => {
     if (webSocketManagerRef.current) {
-      webSocketManagerRef.current.deleteMessage(messageId)
+      webSocketManagerRef.current.deleteMessage(messageId);
     }
   }
+
+  useEffect(() => {
+    if (selectedChat && webSocketManagerRef.current) {
+      const unreadMessages = messages.filter(msg => !msg.isOwn && !msg.read_by.includes(localStorage.getItem('fortify_username') || ''));
+      unreadMessages.forEach(msg => {
+        webSocketManagerRef.current?.markAsRead(msg.id);
+      });
+    }
+  }, [selectedChat, messages]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen text-white">Loading chats...</div>
@@ -185,195 +284,220 @@ export default function ChatPage() {
       "h-screen flex bg-[#1F1D2B]",
       nightMode && "dark"
     )}>
-      {/* Chat List and Sidebar */}
-      <div className="w-full md:w-96 bg-[#2D2A3D] flex-shrink-0 border-r border-gray-800 relative overflow-hidden">
-        {/* Chat List Header */}
-        <div className="p-4 border-b border-gray-800">
-          <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={toggleSidebar}
-              className="p-2 hover:bg-gray-700 rounded-lg"
-            >
-              <Menu className="w-5 h-5 text-gray-400" />
-            </button>
-            <h2 className="text-xl font-bold text-white">Chats</h2>
-            <button className="p-2 hover:bg-gray-700 rounded-lg">
-              <Plus className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-          <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search chats..."
-              className="w-full bg-[#1F1D2B] text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-        </div>
-
-        {/* Chat List */}
-        <div className="overflow-y-auto h-[calc(100vh-5rem)]">
-          {chats.map((chat) => (
-            <button
-              key={chat.id}
-              onClick={() => handleChatSelect(chat.id)}
-              className={cn(
-                "w-full p-4 flex items-center space-x-3 hover:bg-gray-800/50",
-                selectedChat === chat.id && "bg-gray-800/50"
-              )}
-            >
-              <img
-                src={`http://localhost:8000${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
-                alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
-                className="w-12 h-12 rounded-full"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                  <h3 className="text-white font-medium truncate">
-                    {chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
-                  </h3>
-                  <span className="text-gray-400 text-sm flex-shrink-0">
-                    {new Date(chat.last_message?.timestamp).toLocaleString()}
-                  </span>
-                </div>
-                <p className="text-gray-400 text-sm truncate">{chat.last_message?.content}</p>
-              </div>
-              {chat.unread_count > 0 && (
-                <span className="bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  {chat.unread_count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Sidebar Navigation */}
-        <div className={cn(
-          "absolute top-0 left-0 w-3/4 h-full bg-[#2D2A3D] transition-transform duration-300 ease-in-out",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}>
-          <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white">Menu</h2>
-            <button
-              onClick={()=> setSidebarOpen(false)}
-              className="p-2 hover:bg-gray-700 rounded-lg"
-            >
-              <X className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-          <div className="p-4">
-            <div className="flex items-center space-x-3 mb-6">
-              <img
-                src="/placeholder.svg?height=40&width=40"
-                alt="Profile"
-                className="w-10 h-10 rounded-full"
-              />
-              <div className="flex-1">
-                <h3 className="text-white font-medium">Your Name</h3>
-                <p className="text-gray-400 text-sm">Online</p>
-              </div>
-            </div>
-            
-            <nav className="space-y-2">
-              {[ 
-                { icon: MessageSquare, label: "All Chats" },
-                { icon: Users, label: "New Group" },
-                { icon: MessageSquare, label: "New Channel" },
-                { icon: Users, label: "Contacts" },
-                { icon: Phone, label: "Calls" },
-                { icon: BookmarkIcon, label: "Saved Messages" },
-                { icon: Settings, label: "Settings" },
-              ].map((item, index) => (
-                <button
-                  key={index}
-                  className="flex items-center space-x-3 w-full p-2 rounded-lg text-gray-400 hover:bg-purple-500/10 hover:text-purple-500"
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </nav>
-
-            <div className="absolute bottom-4 left-4 right-4">
+      {/* Chat List */}
+      {(!isMobileView || (isMobileView && !selectedChat)) && (
+        <div className="w-full md:w-96 bg-[#2D2A3D] flex-shrink-0 border-r border-gray-800 relative overflow-hidden">
+          <div className="p-4 border-b border-gray-800">
+            <div className="flex items-center justify-between mb-4">
               <button
-                onClick={() => setNightMode(!nightMode)}
-                className="flex items-center space-x-3 w-full p-2 rounded-lg text-gray-400 hover:bg-purple-500/10 hover:text-purple-500"
+                onClick={toggleSidebar}
+                className="p-2 hover:bg-gray-700 rounded-lg"
               >
-                <Moon className="w-5 h-5" />
-                <span>Night Mode</span>
+                <Menu className="w-5 h-5 text-gray-400" />
+              </button>
+              <h2 className="text-xl font-bold text-white">Chats</h2>
+              <button className="p-2 hover:bg-gray-700 rounded-lg">
+                <Plus className="w-5 h-5 text-gray-400" />
               </button>
             </div>
+            <div className="relative">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search chats..."
+                className="w-full bg-[#1F1D2B] text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main Chat Area */}
-      <div className="flex-1 bg-[#1F1D2B] flex flex-col">
-        {selectedChat ? (
-          <>
-            {/* Chat Header */}
-            <div className="p-4 border-b border-gray-800">
-              <div className="flex items-center space-x-3">
+          <div className="overflow-y-auto h-[calc(100vh-5rem)]">
+            {chats.map((chat) => (
+              <button
+                key={chat.id}
+                onClick={() => handleChatSelect(chat.id)}
+                className={cn(
+                  "w-full p-4 flex items-center space-x-3 hover:bg-gray-800/50",
+                  selectedChat === chat.id && "bg-gray-800/50"
+                )}
+              >
                 <img
-                  src={`http://localhost:8000${chats.find(c => c.id === selectedChat)?.other_user.profile_picture}`}
-                  alt={chats.find(c => c.id === selectedChat)?.other_user.username}
+                  src={`http://localhost:8000${(chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image).startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
+                  alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
+                  className="w-12 h-12 rounded-full"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-white font-medium truncate">
+                      {chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
+                    </h3>
+                    <span className="text-gray-400 text-sm flex-shrink-0">
+                      {new Date(chat.last_message?.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-400 text-sm truncate">{chat.last_message?.content}</p>
+                </div>
+                {chat.unread_count > 0 && (
+                  <span className="bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                    {chat.unread_count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Sidebar Navigation */}
+          <div className={cn(
+            "absolute top-0 left-0 w-3/4 h-full bg-[#2D2A3D] transition-transform duration-300 ease-in-out",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          )}>
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Menu</h2>
+              <button
+                onClick={()=> setSidebarOpen(false)}
+                className="p-2 hover:bg-gray-700 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="flex items-center space-x-3 mb-6">
+                <img
+                  src="/placeholder.svg?height=40&width=40"
+                  alt="Profile"
                   className="w-10 h-10 rounded-full"
                 />
-                <div>
-                  <h2 className="text-white font-medium">
-                    {chats.find(c => c.id === selectedChat)?.other_user.username}
-                  </h2>
+                <div className="flex-1">
+                  <h3 className="text-white font-medium">Your Name</h3>
                   <p className="text-gray-400 text-sm">Online</p>
                 </div>
               </div>
-            </div>
+              
+              <nav className="space-y-2">
+                {[ 
+                  { icon: MessageSquare, label: "All Chats" },
+                  { icon: Users, label: "New Group" },
+                  { icon: MessageSquare, label: "New Channel" },
+                  { icon: Users, label: "Contacts" },
+                  { icon: Phone, label: "Calls" },
+                  { icon: BookmarkIcon, label: "Saved Messages" },
+                  { icon: Settings, label: "Settings" },
+                ].map((item, index) => (
+                  <button
+                    key={index}
+                    className="flex items-center space-x-3 w-full p-2 rounded-lg text-gray-400 hover:bg-purple-500/10 hover:text-purple-500"
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  id={message.id}
-                  content={message.content}
-                  sender={message.sender}
-                  sender_profile_picture={message.sender_profile_picture}
-                  timestamp={message.timestamp}
-                  isOwn={message.isOwn}
-                  onEdit={(newContent) => handleStartEdit(message.id, newContent)}
-                  onDelete={() => handleDeleteMessage(message.id)}
-                />
-              ))}
-            </div>
-
-            {/* Message Input */}
-            <div className="p-4 border-t border-gray-800">
-              <div className="flex items-center space-x-2">
-                <button className="p-2 text-gray-400 hover:text-white">
-                  <Paperclip className="w-5 h-5" />
-                </button>
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder={editingMessageId ? "پیام را ویرایش کنید..." : "پیام خود را بنویسید..."}
-                  className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
+              <div className="absolute bottom-4 left-4 right-4">
                 <button
-                  onClick={handleSendMessage}
-                  className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+                  onClick={() => setNightMode(!nightMode)}
+                  className="flex items-center space-x-3 w-full p-2 rounded-lg text-gray-400 hover:bg-purple-500/10 hover:text-purple-500"
                 >
-                  <Send className="w-5 h-5" />
+                  <Moon className="w-5 h-5" />
+                  <span>Night Mode</span>
                 </button>
               </div>
             </div>
-          </>
-        ) : (
-          <div className="flex items-center justify-center h-full text-white">
-            یک چت را برای شروع گفتگو انتخاب کنید
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Main Chat Area */}
+      {(!isMobileView || (isMobileView && selectedChat)) && (
+        <div className="flex-1 bg-[#1F1D2B] flex flex-col">
+          {selectedChat ? (
+            <>
+              {/* Chat Header */}
+              <div className="p-4 border-b border-gray-800">
+                <div className="flex items-center space-x-3">
+                  {isMobileView && (
+                    <button
+                      onClick={() => setSelectedChat(null)}
+                      className="p-2 mr-2 text-gray-400 hover:text-white"
+                    >
+                      <ArrowLeft className="w-6 h-6" />
+                    </button>
+                  )}
+                  <img
+                    src={`http://localhost:8000${chats.find(c => c.id === selectedChat)?.other_user.profile_picture.startsWith('/media') ? '' : '/'}${chats.find(c => c.id === selectedChat)?.other_user.profile_picture}`}
+                    alt={chats.find(c => c.id === selectedChat)?.other_user.username}
+                    className="w-10 h-10 rounded-full"
+                  />
+                  <div>
+                    <h2 className="text-white font-medium">
+                      {chats.find(c => c.id === selectedChat)?.other_user.username}
+                    </h2>
+                    <p className="text-gray-400 text-sm">Online</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((message) => (
+                  <MessageBubble
+                    key={message.id}
+                    id={message.id}
+                    content={message.content}
+                    sender={message.sender}
+                    sender_profile_picture={message.sender_profile_picture}
+                    timestamp={message.timestamp}
+                    isOwn={message.isOwn}
+                    read={message.read_by.includes(localStorage.getItem('fortify_username') || '')}
+                    is_edited={message.is_edited}
+                    is_deleted={message.is_deleted}
+                    onEdit={(newContent) => handleStartEdit(message.id, newContent)}
+                    onDelete={() => handleDeleteMessage(message.id)}
+                  />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Message Input */}
+              <div className="p-4 border-t border-gray-800">
+                <div className="flex items-center space-x-2">
+                  <button className="p-2 text-gray-400 hover:text-white">
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder={editingMessageId ? "Edit your message..." : "Type your message..."}
+                    className="flex-1 bg-[#2D2A3D] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  {editingMessageId && (
+                    <button
+                      onClick={() => {
+                        setEditingMessageId(null)
+                        setNewMessage('')
+                      }}
+                      className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSendMessage}
+                    className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    {editingMessageId ? 'Update' : 'Send'}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full text-white">
+              Select a chat to start a conversation
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
