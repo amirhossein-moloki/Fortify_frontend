@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Search, Moon, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, ArrowLeft } from 'lucide-react'
+import { Menu, Search, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { WebSocketManager } from '@/utils/WebSocketManager'
 import { MessageBubble } from '@/components/chat/MessageBubble'
+import { ProfileSection } from '@/components/profile/ProfileSection'
+import { getUserProfile, UserProfile } from '@/utils/api'
 
 declare global {
   interface Window {
@@ -66,6 +68,8 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
   const [isMobileView, setIsMobileView] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const router = useRouter()
   const webSocketManagerRef = useRef<WebSocketManager | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -77,13 +81,16 @@ export default function ChatPage() {
   useEffect(() => {
     const accessToken = localStorage.getItem('fortify_access')
     const refreshToken = localStorage.getItem('fortify_refresh')
+    const username = localStorage.getItem('fortify_username')
 
-    if (!accessToken || !refreshToken) {
+    if (!accessToken || !refreshToken || !username) {
       router.push('/login')
       return
     }
 
+    setIsAuthenticated(true)
     fetchChats()
+    fetchUserProfile(username, accessToken)
 
     webSocketManagerRef.current = new WebSocketManager(handleWebSocketMessage)
 
@@ -237,6 +244,9 @@ export default function ChatPage() {
       webSocketManagerRef.current.disconnect()
       webSocketManagerRef.current.connect(chatId, token)
     }
+    if (isMobileView) {
+      setSidebarOpen(false)
+    }
   }
 
   const handleSendMessage = () => {
@@ -270,6 +280,33 @@ export default function ChatPage() {
       });
     }
   }, [selectedChat, messages]);
+
+  const fetchUserProfile = async (username: string, token: string) => {
+    try {
+      const profileData = await getUserProfile(username, token);
+      setUserProfile(profileData);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        if (error.response.status === 401) {
+          setError('Unauthorized. Please log in again.');
+          router.push('/login');
+        } else {
+          setError(`Failed to fetch user profile. Server returned ${error.response.status}.`);
+        }
+      } else {
+        setError('An unexpected error occurred while fetching the user profile.');
+      }
+    }
+  };
+
+  const handleProfileClick = (username: string) => {
+    router.push(`/profile/${username}`)
+  }
+
+  if (!isAuthenticated) {
+    return <div className="flex items-center justify-center h-screen text-white">Authenticating...</div>
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen text-white">Loading chats...</div>
@@ -360,20 +397,14 @@ export default function ChatPage() {
               </button>
             </div>
             <div className="p-4">
-              <div className="flex items-center space-x-3 mb-6">
-                <img
-                  src="/placeholder.svg?height=40&width=40"
-                  alt="Profile"
-                  className="w-10 h-10 rounded-full"
-                />
-                <div className="flex-1">
-                  <h3 className="text-white font-medium">Your Name</h3>
-                  <p className="text-gray-400 text-sm">Online</p>
-                </div>
-              </div>
-              
-              <nav className="space-y-2">
-                {[ 
+              <ProfileSection
+                userProfile={userProfile}
+                onNightModeToggle={() => setNightMode(!nightMode)}
+                nightMode={nightMode}
+                onProfileClick={handleProfileClick}
+              />
+              <nav className="space-y-2 p-4">
+                {[
                   { icon: MessageSquare, label: "All Chats" },
                   { icon: Users, label: "New Group" },
                   { icon: MessageSquare, label: "New Channel" },
@@ -391,16 +422,6 @@ export default function ChatPage() {
                   </button>
                 ))}
               </nav>
-
-              <div className="absolute bottom-4 left-4 right-4">
-                <button
-                  onClick={() => setNightMode(!nightMode)}
-                  className="flex items-center space-x-3 w-full p-2 rounded-lg text-gray-400 hover:bg-purple-500/10 hover:text-purple-500"
-                >
-                  <Moon className="w-5 h-5" />
-                  <span>Night Mode</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
