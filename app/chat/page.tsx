@@ -1,14 +1,19 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Search, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, ArrowLeft } from 'lucide-react'
+import { Menu, Search, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, Key, Sun, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { WebSocketManager } from '@/utils/WebSocketManager'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ProfileSection } from '@/components/profile/ProfileSection'
-import { getUserProfile, UserProfile } from '@/utils/api'
+import { getUserProfile, UserProfile, getChatParticipants, ChatDetails, leaveChat } from '@/utils/api'
+import Link from 'next/link'
+import { ChatHeader } from '@/components/chat/ChatHeader'
+import { ChatInfo } from '@/components/chat/ChatInfo'
+import { ImageModal } from '@/components/ui/ImageModal'
+import { DeleteChatModal } from '@/components/chat/DeleteChatModal'
 
 declare global {
   interface Window {
@@ -30,13 +35,15 @@ interface Chat {
       username: string
     }
     timestamp: string
-  }
+  } | null
   other_user: {
     id: number
     profile_picture: string
     username: string
   }
   unread_count: number
+  member_count: number
+  is_admin: boolean
 }
 
 interface Message {
@@ -70,6 +77,10 @@ export default function ChatPage() {
   const [isMobileView, setIsMobileView] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [showChatInfo, setShowChatInfo] = useState(false)
+  const [selectedChatDetails, setSelectedChatDetails] = useState<ChatDetails | null>(null)
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
+  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const router = useRouter()
   const webSocketManagerRef = useRef<WebSocketManager | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -237,8 +248,9 @@ export default function ChatPage() {
     setSidebarOpen(!sidebarOpen)
   }
 
-  const handleChatSelect = (chatId: number) => {
+  const handleChatSelect = async (chatId: number) => {
     setSelectedChat(chatId)
+    setMessages([]) // Clear previous messages
     const token = localStorage.getItem('fortify_access')
     if (token && webSocketManagerRef.current) {
       webSocketManagerRef.current.disconnect()
@@ -246,6 +258,32 @@ export default function ChatPage() {
     }
     if (isMobileView) {
       setSidebarOpen(false)
+    }
+
+    try {
+      const chatDetails = await getChatParticipants(chatId, token!)
+      setSelectedChatDetails(chatDetails)
+
+      if (chatDetails.chat_type === 'direct') {
+        const otherUser = chatDetails.participants.find(
+          participant => participant.username !== localStorage.getItem('fortify_username')
+        );
+        if (otherUser) {
+          chatDetails.other_user = otherUser;
+        }
+      }
+      // Fetch messages for the selected chat
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/chats/chat/${chatId}/messages/`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+      setMessages(response.data.map((msg: any) => ({
+        ...msg,
+        isOwn: msg.sender === localStorage.getItem('fortify_username')
+      })))
+    } catch (error) {
+      console.error('Error fetching chat details or messages:', error)
     }
   }
 
@@ -304,6 +342,34 @@ export default function ChatPage() {
     router.push(`/profile/${username}`)
   }
 
+  const handleCreateChat = () => {
+    router.push('/create-chat')
+  }
+
+  const handleChatUpdate = (updatedChat: ChatDetails) => {
+    setSelectedChatDetails(updatedChat)
+    // Update the chat in the chats list
+    setChats(prevChats => prevChats.map(chat => 
+      chat.id === updatedChat.id ? { ...chat, ...updatedChat } : chat
+    ))
+  }
+
+  const handleLeaveChat = async () => {
+    if (!selectedChat) return;
+    try {
+      await leaveChat(selectedChat);
+      setSelectedChat(null);
+      fetchChats(); // Refresh the chat list
+    } catch (error) {
+      console.error('Error leaving chat:', error);
+      setError('Failed to leave the chat. Please try again.');
+    }
+  };
+
+  const handleDeleteChat = () => {
+    setShowDeleteChatModal(true);
+  };
+
   if (!isAuthenticated) {
     return <div className="flex items-center justify-center h-screen text-white">Authenticating...</div>
   }
@@ -333,7 +399,10 @@ export default function ChatPage() {
                 <Menu className="w-5 h-5 text-gray-400" />
               </button>
               <h2 className="text-xl font-bold text-white">Chats</h2>
-              <button className="p-2 hover:bg-gray-700 rounded-lg">
+              <button
+                onClick={handleCreateChat}
+                className="p-2 hover:bg-gray-700 rounded-lg"
+              >
                 <Plus className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -357,21 +426,36 @@ export default function ChatPage() {
                   selectedChat === chat.id && "bg-gray-800/50"
                 )}
               >
-                <img
-                  src={`http://localhost:8000${(chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image).startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
-                  alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
-                  className="w-12 h-12 rounded-full"
-                />
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (chat.chat_type !== 'direct') {
+                      setEnlargedImage(`http://localhost:8000${chat.group_image.startsWith('/media') ? '' : '/'}${chat.group_image}`);
+                    } else {
+                      router.push(`/profile/${chat.other_user.username}`);
+                    }
+                  }}
+                >
+                  <img
+                    src={`http://localhost:8000${((chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image) || '').startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
+                    alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
+                    className="w-12 h-12 rounded-full cursor-pointer"
+                  />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start">
                     <h3 className="text-white font-medium truncate">
                       {chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
                     </h3>
-                    <span className="text-gray-400 text-sm flex-shrink-0">
-                      {new Date(chat.last_message?.timestamp).toLocaleString()}
-                    </span>
+                    {chat.last_message && (
+                      <span className="text-gray-400 text-sm flex-shrink-0">
+                        {new Date(chat.last_message.timestamp).toLocaleString()}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-gray-400 text-sm truncate">{chat.last_message?.content}</p>
+                  <p className="text-gray-400 text-sm truncate">
+                    {chat.last_message?.content || 'هنوز پیامی ارسال نشده'}
+                  </p>
                 </div>
                 {chat.unread_count > 0 && (
                   <span className="bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -397,25 +481,24 @@ export default function ChatPage() {
               </button>
             </div>
             <div className="p-4">
-              <ProfileSection
-                userProfile={userProfile}
-                onNightModeToggle={() => setNightMode(!nightMode)}
-                nightMode={nightMode}
-                onProfileClick={handleProfileClick}
-              />
+              {userProfile && (
+                <ProfileSection
+                  userProfile={userProfile}
+                  onNightModeToggle={() => setNightMode(!nightMode)}
+                  nightMode={nightMode}
+                  onProfileClick={handleProfileClick}
+                />
+              )}
               <nav className="space-y-2 p-4">
                 {[
-                  { icon: MessageSquare, label: "All Chats" },
-                  { icon: Users, label: "New Group" },
-                  { icon: MessageSquare, label: "New Channel" },
-                  { icon: Users, label: "Contacts" },
-                  { icon: Phone, label: "Calls" },
-                  { icon: BookmarkIcon, label: "Saved Messages" },
-                  { icon: Settings, label: "Settings" },
+                  { icon: MessageSquare, label: "New Chat", onClick: handleCreateChat },
+                  { icon: nightMode ? Sun : Moon, label: nightMode ? "Day Mode" : "Night Mode", onClick: () => setNightMode(!nightMode) },
+                  { icon: Key, label: "Change Password", onClick: () => router.push('/change-password') },
                 ].map((item, index) => (
                   <button
                     key={index}
                     className="flex items-center space-x-3 w-full p-2 rounded-lg text-gray-400 hover:bg-purple-500/10 hover:text-purple-500"
+                    onClick={item.onClick}
                   >
                     <item.icon className="w-5 h-5" />
                     <span>{item.label}</span>
@@ -430,32 +513,21 @@ export default function ChatPage() {
       {/* Main Chat Area */}
       {(!isMobileView || (isMobileView && selectedChat)) && (
         <div className="flex-1 bg-[#1F1D2B] flex flex-col">
-          {selectedChat ? (
+          {selectedChat && selectedChatDetails ? (
             <>
-              {/* Chat Header */}
-              <div className="p-4 border-b border-gray-800">
-                <div className="flex items-center space-x-3">
-                  {isMobileView && (
-                    <button
-                      onClick={() => setSelectedChat(null)}
-                      className="p-2 mr-2 text-gray-400 hover:text-white"
-                    >
-                      <ArrowLeft className="w-6 h-6" />
-                    </button>
-                  )}
-                  <img
-                    src={`http://localhost:8000${chats.find(c => c.id === selectedChat)?.other_user.profile_picture.startsWith('/media') ? '' : '/'}${chats.find(c => c.id === selectedChat)?.other_user.profile_picture}`}
-                    alt={chats.find(c => c.id === selectedChat)?.other_user.username}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div>
-                    <h2 className="text-white font-medium">
-                      {chats.find(c => c.id === selectedChat)?.other_user.username}
-                    </h2>
-                    <p className="text-gray-400 text-sm">Online</p>
-                  </div>
-                </div>
-              </div>
+              <ChatHeader
+                chatId={selectedChat}
+                chatType={selectedChatDetails.chat_type}
+                chatName={selectedChatDetails.chat_type === 'direct' ? selectedChatDetails.other_user?.username || '' : selectedChatDetails.group_name || ''}
+                username={selectedChatDetails.chat_type === 'direct' ? selectedChatDetails.other_user?.username || '' : ''}
+                memberCount={selectedChatDetails.participants.length}
+                profilePicture={selectedChatDetails.chat_type === 'direct' ? selectedChatDetails.other_user?.profile_picture || '' : selectedChatDetails.group_image || ''}
+                isAdmin={selectedChatDetails.group_admin?.some(admin => admin.id === userProfile?.profile.user.id) || false}
+                isMobileView={isMobileView}
+                onBackClick={() => setSelectedChat(null)}
+                onChatUpdate={handleChatUpdate}
+                onLeaveChat={handleLeaveChat}
+              />
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -495,8 +567,8 @@ export default function ChatPage() {
                   {editingMessageId && (
                     <button
                       onClick={() => {
-                        setEditingMessageId(null)
-                        setNewMessage('')
+                        setEditingMessageId(null);
+                        setNewMessage('');
                       }}
                       className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
                     >
@@ -518,6 +590,41 @@ export default function ChatPage() {
             </div>
           )}
         </div>
+      )}
+
+
+      {showChatInfo && selectedChatDetails && (
+        <ChatInfo
+          chatId={selectedChat!}
+          onClose={() => setShowChatInfo(false)}
+        />
+      )}
+      {enlargedImage && (
+        <ImageModal
+          imageUrl={enlargedImage}
+          onClose={() => setEnlargedImage(null)}
+        />
+      )}
+      {showDeleteChatModal && selectedChat && (
+        <DeleteChatModal
+          chatId={selectedChat}
+          onClose={() => setShowDeleteChatModal(false)}
+          onDelete={async () => {
+            try {
+              await axios.delete(`http://localhost:8000/api/chats/${selectedChat}/`, {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem('fortify_access')}`
+                }
+              });
+              setSelectedChat(null);
+              fetchChats(); // Refresh the chat list
+              setShowDeleteChatModal(false);
+            } catch (error) {
+              console.error('Error deleting chat:', error);
+              setError('Failed to delete the chat. Please try again.');
+            }
+          }}
+        />
       )}
     </div>
   )

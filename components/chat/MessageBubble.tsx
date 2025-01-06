@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Edit, Trash2, Copy, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Link from 'next/link'
 
 interface MessageProps {
   id: number
@@ -80,22 +81,24 @@ export function MessageBubble({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.3 }}
-          className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 relative`}
+          className={`flex items-start gap-2 mb-4 relative ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onMouseDown={handleTouchStart}
           onMouseUp={handleTouchEnd}
           onMouseLeave={handleTouchEnd}
         >
-          <img
-            src={`http://localhost:8000${sender_profile_picture.startsWith('/media') ? '' : '/'}${sender_profile_picture}`}
-            alt={sender}
-            className={`w-8 h-8 rounded-full ${isOwn ? 'ml-2 order-2' : 'mr-2'}`}
-          />
+          <Link href={`/profile/${sender}`}>
+            <img
+              src={`http://localhost:8000${sender_profile_picture.startsWith('/media') ? '' : '/'}${sender_profile_picture}`}
+              alt={sender}
+              className="w-8 h-8 rounded-full cursor-pointer"
+            />
+          </Link>
           <div
             className={`max-w-[70%] rounded-lg p-3 ${
               isOwn
-                ? 'bg-purple-600 text-white ml-auto'
+                ? 'bg-purple-600 text-white'
                 : 'bg-[#2D2A3D] text-white'
             }`}
           >
@@ -145,3 +148,4 @@ export function MessageBubble({
     </AnimatePresence>
   )
 }
+

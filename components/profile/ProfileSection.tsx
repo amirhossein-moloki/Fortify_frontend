@@ -4,7 +4,7 @@ import { UserProfile } from '@/utils/api'
 import { useRouter } from 'next/navigation'
 
 interface ProfileSectionProps {
-  userProfile: UserProfile | null;
+  userProfile: UserProfile;
   onNightModeToggle: () => void;
   nightMode: boolean;
   onProfileClick: (username: string) => void;
@@ -17,22 +17,18 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({
   onProfileClick
 }) => {
   const router = useRouter()
-  
   if (!userProfile) {
     return <div className="text-white">Loading profile...</div>;
   }
 
-  const userData = userProfile.user;
+  const userData = userProfile.profile.user;
   if (!userData) {
     return <div className="text-white">No user data available</div>;
   }
 
   return (
     <div className="p-4">
-      <div 
-        className="flex items-center space-x-3 mb-6 cursor-pointer" 
-        onClick={() => onProfileClick(userData.username)}
-      >
+      <div className="flex items-center space-x-3 mb-6 cursor-pointer" onClick={() => onProfileClick(userData.username)}>
         <img
           src={`http://localhost:8000${userData.profile_picture?.startsWith('/') ? '' : '/'}${userData.profile_picture}`}
           alt={userData.username}
@@ -43,19 +39,22 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({
         />
         <div className="flex-1">
           <h3 className="text-white font-medium text-lg">{userData.username}</h3>
-          <p className="text-gray-400 text-sm">{userData.is_online ? 'Online' : 'Offline'}</p>
+          <p className="text-gray-400 text-sm">{userData.email}</p>
         </div>
       </div>
       
       <div className="text-gray-400 text-sm mb-4">
+        <p className="mb-2">
+          <span className="font-medium">Status:</span> {userData.is_online ? 'Online' : 'Offline'}
+        </p>
+        <p className="mb-2">
+          <span className="font-medium">Last seen:</span> {new Date(userData.last_seen).toLocaleString()}
+        </p>
         {userData.bio && (
           <p className="mb-2">
             <span className="font-medium">Bio:</span> {userData.bio}
           </p>
         )}
-        <p className="mb-2">
-          <span className="font-medium">Last seen:</span> {new Date(userData.last_seen).toLocaleString()}
-        </p>
       </div>
       
       <div className="mt-6">

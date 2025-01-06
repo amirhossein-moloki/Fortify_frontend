@@ -2,11 +2,23 @@ import React from 'react'
 import { X } from 'lucide-react'
 
 interface ProfilePictureModalProps {
-  imageUrl: string
-  onClose: () => void
+  imageUrl: string;
+  onClose: () => void;
+  onUpdate: (file: File) => Promise<void>;
 }
 
-const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ imageUrl, onClose }) => {
+const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ imageUrl, onClose, onUpdate }) => {
+  // ... existing code ...
+
+  // Add a function to handle file upload
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      await onUpdate(file);
+      onClose();
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-[#2D2A3D] p-4 rounded-lg max-w-3xl max-h-[90vh] overflow-auto">
@@ -16,10 +28,21 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ imageUrl, onC
           </button>
         </div>
         <img src={imageUrl} alt="Profile" className="w-full h-auto rounded-lg" />
+        <div className="mt-4">
+          <label htmlFor="profile-picture-upload" className="cursor-pointer bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700">
+            Upload New Picture
+          </label>
+          <input
+            id="profile-picture-upload"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+        </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 export default ProfilePictureModal
-

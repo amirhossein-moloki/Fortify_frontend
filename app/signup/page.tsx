@@ -115,7 +115,7 @@ export default function SignupForm() {
             href="/" 
             className="absolute top-4 right-4 z-10 text-white hover:text-gray-200 transition-colors px-4 py-2 rounded-full bg-white/10"
           >
-            Back to website
+            Back to Login
           </Link>
           <div className="relative h-full w-full">
             {images.map((src, index) => (
