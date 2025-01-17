@@ -21,6 +21,7 @@ interface ChatHeaderProps {
   onBackClick?: () => void;
   onChatUpdate: (updatedChat: ChatDetails) => void;
   onLeaveChat: () => void;
+  isOnline?: boolean;  // اضافه کردن isOnline
 }
 
 export function ChatHeader({
@@ -34,7 +35,8 @@ export function ChatHeader({
   isMobileView,
   onBackClick,
   onChatUpdate,
-  onLeaveChat
+  onLeaveChat,
+  isOnline  // دریافت isOnline از props
 }: ChatHeaderProps) {
   const [showInfo, setShowInfo] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -52,7 +54,6 @@ export function ChatHeader({
   }
 
   const isDirectChat = chatType === 'direct';
-  const isOnline = isDirectChat ? true : undefined; // Placeholder - needs proper online status logic
 
   return (
     <>
@@ -81,7 +82,7 @@ export function ChatHeader({
             </div>
             <p className="text-gray-400 text-sm">
               {isDirectChat
-                ? (isOnline ? 'Online' : 'Offline')
+                ? (isOnline ? 'Online' : 'Offline')  // استفاده از isOnline
                 : `${memberCount} members`}
             </p>
           </div>
@@ -114,4 +115,3 @@ export function ChatHeader({
     </>
   )
 }
-

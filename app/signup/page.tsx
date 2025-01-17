@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 const images = [
   '/images/fortify_auth1.jpg',
@@ -24,6 +25,7 @@ export default function SignupForm() {
   const [message, setMessage] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -48,7 +50,7 @@ export default function SignupForm() {
     };
 
     try {
-      const response = await fetch('${process.env.BASE_URL}api/accounts/register/', {
+      const response = await fetch(`${process.env.BASE_URL}api/accounts/register/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -59,8 +61,9 @@ export default function SignupForm() {
       const result = await response.json();
 
       if (response.ok) {
+
         // Registration successful
-        setMessage(result.message || 'Registration successful!');
+        setMessage(result.message || 'Registration successful! Please check your email to activate your account.');
         setIsSuccess(true);
         setUsername('');
         setEmail('');

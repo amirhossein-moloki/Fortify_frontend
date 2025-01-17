@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Search, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, Key, Sun, Moon } from 'lucide-react'
+import { Menu, Search, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, Key, Sun, Moon, Trash, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
@@ -14,6 +14,9 @@ import { ChatHeader } from '@/components/chat/ChatHeader'
 import { ChatInfo } from '@/components/chat/ChatInfo'
 import { ImageModal } from '@/components/ui/ImageModal'
 import { DeleteChatModal } from '@/components/chat/DeleteChatModal'
+import { withTokenRefresh } from '@/hocs/withTokenRefresh'
+import { refreshToken } from '@/utils/auth'
+import { useOnlineStatus } from '@/app/hooks/useOnlineStatus'
 
 declare global {
   interface Window {
@@ -75,12 +78,15 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
   const [isMobileView, setIsMobileView] = useState(false)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [showChatInfo, setShowChatInfo] = useState(false)
   const [selectedChatDetails, setSelectedChatDetails] = useState<ChatDetails | null>(null)
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
-  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
+  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false)
+  const [isEmptyChatList, setIsEmptyChatList] = useState(false)
+  const [usernames, setUsernames] = useState<string[]>([])
+  const onlineStatus = useOnlineStatus(usernames)
   const router = useRouter()
   const webSocketManagerRef = useRef<WebSocketManager | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -105,7 +111,6 @@ export default function ChatPage() {
 
     webSocketManagerRef.current = new WebSocketManager(handleWebSocketMessage)
 
-    // Initialize AudioContext and load audio files
     const AudioContextClass = window.AudioContext || window.webkitAudioContext
     audioContextRef.current = new AudioContextClass()
 
@@ -143,13 +148,20 @@ export default function ChatPage() {
     }
   }, [router])
 
+  useEffect(() => {
+    const directChatUsernames = chats
+      .filter(chat => chat.chat_type === 'direct')
+      .map(chat => chat.other_user.username)
+    setUsernames(directChatUsernames)
+  }, [chats])
+
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    scrollToBottom()
+  }, [messages])
 
   const playSound = (buffer: AudioBuffer | null) => {
     if (buffer && audioContextRef.current) {
@@ -165,7 +177,7 @@ export default function ChatPage() {
       case 'send':
         setMessages(prevMessages => {
           if (prevMessages.some(msg => msg.id === data.message_id)) {
-            return prevMessages;
+            return prevMessages
           }
           if (data.sender !== localStorage.getItem('fortify_username')) {
             playSound(receiveAudioBufferRef.current)
@@ -184,37 +196,41 @@ export default function ChatPage() {
             is_deleted: data.is_deleted,
             read_by: data.read_by,
             file: data.file
-          }];
-        });
-        break;
+          }]
+        })
+        break
       case 'edit':
         setMessages(prevMessages => prevMessages.map(msg =>
           msg.id === data.message_id ? { ...msg, content: data.message, is_edited: data.is_edited } : msg
-        ));
+        ))
         if (data.sender !== localStorage.getItem('fortify_username')) {
           playSound(editAudioBufferRef.current)
         }
-        break;
+        break
       case 'delete':
         setMessages(prevMessages => prevMessages.map(msg =>
           msg.id === data.message_id ? { ...msg, is_deleted: true } : msg
-        ));
-        break;
+        ))
+        break
       case 'read':
         setMessages(prevMessages => prevMessages.map(msg =>
           msg.id === data.message_id ? { ...msg, read_by: data.read_by } : msg
-        ));
-        break;
+        ))
+        break
       default:
         console.error('Unknown action:', data.action)
     }
   }
 
   const fetchChats = async () => {
-    const token = localStorage.getItem('fortify_access')
+    let token = localStorage.getItem('fortify_access')
     if (!token) {
-      router.push('/login')
-      return
+      await handleTokenRefresh()
+      token = localStorage.getItem('fortify_access')
+      if (!token) {
+        router.push('/login')
+        return
+      }
     }
 
     setLoading(true)
@@ -226,13 +242,21 @@ export default function ChatPage() {
           Authorization: `Bearer ${token}`
         }
       })
-      setChats(response.data)
+      if (Array.isArray(response.data) && response.data.length === 0) {
+        setChats([])
+        setIsEmptyChatList(true)
+        setError(null)
+      } else {
+        setChats(response.data)
+        setIsEmptyChatList(false)
+        setError(null)
+      }
     } catch (error) {
       console.error('Error fetching chats:', error)
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 401) {
-          setError('Unauthorized. Please log in again.')
-          router.push('/login')
+          await handleTokenRefresh()
+          fetchChats() // Retry after refresh
         } else {
           setError(`Server error: ${error.response?.status}. Please try again.`)
         }
@@ -250,29 +274,38 @@ export default function ChatPage() {
 
   const handleChatSelect = async (chatId: number) => {
     setSelectedChat(chatId)
-    setMessages([]) // Clear previous messages
-    const token = localStorage.getItem('fortify_access')
-    if (token && webSocketManagerRef.current) {
+    setMessages([])
+    let token = localStorage.getItem('fortify_access')
+    if (!token) {
+      await handleTokenRefresh()
+      token = localStorage.getItem('fortify_access')
+      if (!token) {
+        router.push('/login')
+        return
+      }
+    }
+
+    if (webSocketManagerRef.current) {
       webSocketManagerRef.current.disconnect()
       webSocketManagerRef.current.connect(chatId, token)
     }
+
     if (isMobileView) {
       setSidebarOpen(false)
     }
 
     try {
-      const chatDetails = await getChatParticipants(chatId, token!)
+      const chatDetails = await getChatParticipants(chatId, token)
       setSelectedChatDetails(chatDetails)
 
       if (chatDetails.chat_type === 'direct') {
         const otherUser = chatDetails.participants.find(
           participant => participant.username !== localStorage.getItem('fortify_username')
-        );
+        )
         if (otherUser) {
-          chatDetails.other_user = otherUser;
+          chatDetails.other_user = otherUser
         }
       }
-      // Fetch messages for the selected chat
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/chats/chat/${chatId}/messages/`, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -284,18 +317,22 @@ export default function ChatPage() {
       })))
     } catch (error) {
       console.error('Error fetching chat details or messages:', error)
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        await handleTokenRefresh()
+        handleChatSelect(chatId) // Retry after refresh
+      }
     }
   }
 
   const handleSendMessage = () => {
     if (newMessage.trim() && webSocketManagerRef.current) {
       if (editingMessageId) {
-        webSocketManagerRef.current.editMessage(editingMessageId, newMessage.trim());
-        setEditingMessageId(null);
+        webSocketManagerRef.current.editMessage(editingMessageId, newMessage.trim())
+        setEditingMessageId(null)
       } else {
-        webSocketManagerRef.current.sendMessage(newMessage.trim());
+        webSocketManagerRef.current.sendMessage(newMessage.trim())
       }
-      setNewMessage('');
+      setNewMessage('')
     }
   }
 
@@ -306,37 +343,46 @@ export default function ChatPage() {
 
   const handleDeleteMessage = (messageId: number) => {
     if (webSocketManagerRef.current) {
-      webSocketManagerRef.current.deleteMessage(messageId);
+      webSocketManagerRef.current.deleteMessage(messageId)
     }
   }
 
   useEffect(() => {
     if (selectedChat && webSocketManagerRef.current) {
-      const unreadMessages = messages.filter(msg => !msg.isOwn && !msg.read_by.includes(localStorage.getItem('fortify_username') || ''));
+      const unreadMessages = messages.filter(msg => !msg.isOwn && !msg.read_by.includes(localStorage.getItem('fortify_username') || ''))
       unreadMessages.forEach(msg => {
-        webSocketManagerRef.current?.markAsRead(msg.id);
-      });
+        webSocketManagerRef.current?.markAsRead(msg.id)
+      })
     }
-  }, [selectedChat, messages]);
+  }, [selectedChat, messages])
 
   const fetchUserProfile = async (username: string, token: string) => {
-    try {
-      const profileData = await getUserProfile(username, token);
-      setUserProfile(profileData);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      if (axios.isAxiosError(error) && error.response) {
-        if (error.response.status === 401) {
-          setError('Unauthorized. Please log in again.');
-          router.push('/login');
-        } else {
-          setError(`Failed to fetch user profile. Server returned ${error.response.status}.`);
-        }
-      } else {
-        setError('An unexpected error occurred while fetching the user profile.');
+    let currentToken = token
+    if (!currentToken) {
+      await handleTokenRefresh()
+      currentToken = localStorage.getItem('fortify_access') || ''
+      if (!currentToken) {
+        router.push('/login')
+        return
       }
     }
-  };
+    try {
+      const profileData = await getUserProfile(username, currentToken)
+      setUserProfile(profileData)
+    } catch (error) {
+      console.error('Error fetching user profile:', error)
+      if (axios.isAxiosError(error) && error.response) {
+        if (error.response.status === 401) {
+          await handleTokenRefresh()
+          fetchUserProfile(username, localStorage.getItem('fortify_access') || '')
+        } else {
+          setError(`Failed to fetch user profile. Server returned ${error.response.status}.`)
+        }
+      } else {
+        setError('An unexpected error occurred while fetching the user profile.')
+      }
+    }
+  }
 
   const handleProfileClick = (username: string) => {
     router.push(`/profile/${username}`)
@@ -348,27 +394,104 @@ export default function ChatPage() {
 
   const handleChatUpdate = (updatedChat: ChatDetails) => {
     setSelectedChatDetails(updatedChat)
-    // Update the chat in the chats list
     setChats(prevChats => prevChats.map(chat => 
       chat.id === updatedChat.id ? { ...chat, ...updatedChat } : chat
     ))
   }
 
   const handleLeaveChat = async () => {
-    if (!selectedChat) return;
-    try {
-      await leaveChat(selectedChat);
-      setSelectedChat(null);
-      fetchChats(); // Refresh the chat list
-    } catch (error) {
-      console.error('Error leaving chat:', error);
-      setError('Failed to leave the chat. Please try again.');
+    if (!selectedChat) return
+    let token = localStorage.getItem('fortify_access')
+    if (!token) {
+      await handleTokenRefresh()
+      token = localStorage.getItem('fortify_access')
+      if (!token) {
+        router.push('/login')
+        return
+      }
     }
-  };
+    try {
+      await leaveChat(selectedChat)
+      setSelectedChat(null)
+      fetchChats()
+    } catch (error) {
+      console.error('Error leaving chat:', error)
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        await handleTokenRefresh()
+        handleLeaveChat()
+      } else {
+        setError('Failed to leave the chat. Please try again.')
+      }
+    }
+  }
 
   const handleDeleteChat = () => {
-    setShowDeleteChatModal(true);
-  };
+    setShowDeleteChatModal(true)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('fortify_access')
+    localStorage.removeItem('fortify_refresh')
+    localStorage.removeItem('fortify_username')
+    router.push('/login')
+  }
+
+  const handleDeleteAccount = async () => {
+    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      let token = localStorage.getItem('fortify_access')
+      if (!token) {
+        await handleTokenRefresh()
+        token = localStorage.getItem('fortify_access')
+        if (!token) {
+          router.push('/login')
+          return
+        }
+      }
+      try {
+        const response = await axios.delete('http://localhost:8000/api/accounts/delete-account/', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+        if (response.status === 204) {
+          alert('Your account has been successfully deleted.')
+          handleLogout()
+        }
+      } catch (error) {
+        console.error('Error deleting account:', error)
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          await handleTokenRefresh()
+          handleDeleteAccount()
+        } else {
+          alert('Failed to delete account. Please try again.')
+        }
+      }
+    }
+  }
+
+  const handleTokenRefresh = async () => {
+    const currentRefreshToken = localStorage.getItem('fortify_refresh')
+    if (!currentRefreshToken) {
+      console.error('No refresh token found')
+      router.push('/login')
+      return
+    }
+
+    try {
+      const response = await refreshToken(currentRefreshToken)
+      if (response.access_token) {
+        localStorage.setItem('fortify_access', response.access_token)
+        if (response.refresh_token) {
+          localStorage.setItem('fortify_refresh', response.refresh_token)
+        }
+      } else {
+        throw new Error('No access token received')
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error)
+      router.push('/login')
+    }
+  }
 
   if (!isAuthenticated) {
     return <div className="flex items-center justify-center h-screen text-white">Authenticating...</div>
@@ -417,53 +540,67 @@ export default function ChatPage() {
           </div>
 
           <div className="overflow-y-auto h-[calc(100vh-5rem)]">
-            {chats.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => handleChatSelect(chat.id)}
-                className={cn(
-                  "w-full p-4 flex items-center space-x-3 hover:bg-gray-800/50",
-                  selectedChat === chat.id && "bg-gray-800/50"
-                )}
-              >
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (chat.chat_type !== 'direct') {
-                      setEnlargedImage(`http://localhost:8000${chat.group_image.startsWith('/media') ? '' : '/'}${chat.group_image}`);
-                    } else {
-                      router.push(`/profile/${chat.other_user.username}`);
-                    }
-                  }}
+            {isEmptyChatList ? (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                شما هنوز هیچ چتی ندارید
+              </div>
+            ) : (
+              chats.map((chat) => (
+                <button
+                  key={chat.id}
+                  onClick={() => handleChatSelect(chat.id)}
+                  className={cn(
+                    "w-full p-4 flex items-center space-x-3 hover:bg-gray-800/50",
+                    selectedChat === chat.id && "bg-gray-800/50"
+                  )}
                 >
-                  <img
-                    src={`http://localhost:8000${((chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image) || '').startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
-                    alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
-                    className="w-12 h-12 rounded-full cursor-pointer"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-white font-medium truncate">
-                      {chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
-                    </h3>
-                    {chat.last_message && (
-                      <span className="text-gray-400 text-sm flex-shrink-0">
-                        {new Date(chat.last_message.timestamp).toLocaleString()}
-                      </span>
+                  <div 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (chat.chat_type !== 'direct') {
+                        setEnlargedImage(`http://localhost:8000${chat.group_image.startsWith('/media') ? '' : '/'}${chat.group_image}`);
+                      } else {
+                        router.push(`/profile/${chat.other_user.username}`);
+                      }
+                    }}
+                    className="relative"
+                  >
+                    <img
+                      src={`http://localhost:8000${((chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image) || '').startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
+                      alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
+                      className="w-12 h-12 rounded-full cursor-pointer"
+                    />
+                    {chat.chat_type === 'direct' && (
+                      <div 
+                        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${
+                          onlineStatus[chat.other_user.username] ? 'bg-green-500' : 'bg-gray-500'
+                        }`}
+                      ></div>
                     )}
                   </div>
-                  <p className="text-gray-400 text-sm truncate">
-                    {chat.last_message?.content || 'هنوز پیامی ارسال نشده'}
-                  </p>
-                </div>
-                {chat.unread_count > 0 && (
-                  <span className="bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                    {chat.unread_count}
-                  </span>
-                )}
-              </button>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <h3 className="text-white font-medium truncate">
+                        {chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
+                      </h3>
+                      {chat.last_message && (
+                        <span className="text-gray-400 text-sm flex-shrink-0">
+                          {new Date(chat.last_message.timestamp).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-gray-400 text-sm truncate">
+                      {chat.last_message?.content || 'هنوز پیامی ارسال نشده'}
+                    </p>
+                  </div>
+                  {chat.unread_count > 0 && (
+                    <span className="bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                      {chat.unread_count}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
           </div>
 
           {/* Sidebar Navigation */}
@@ -494,6 +631,8 @@ export default function ChatPage() {
                   { icon: MessageSquare, label: "New Chat", onClick: handleCreateChat },
                   { icon: nightMode ? Sun : Moon, label: nightMode ? "Day Mode" : "Night Mode", onClick: () => setNightMode(!nightMode) },
                   { icon: Key, label: "Change Password", onClick: () => router.push('/change-password') },
+                  { icon: LogOut, label: "Log Out", onClick: handleLogout },
+                  { icon: Trash, label: "Delete Account", onClick: handleDeleteAccount },
                 ].map((item, index) => (
                   <button
                     key={index}
@@ -527,6 +666,7 @@ export default function ChatPage() {
                 onBackClick={() => setSelectedChat(null)}
                 onChatUpdate={handleChatUpdate}
                 onLeaveChat={handleLeaveChat}
+                isOnline={selectedChatDetails.chat_type === 'direct' ? onlineStatus[selectedChatDetails.other_user?.username || ''] : undefined}
               />
 
               {/* Messages */}
@@ -567,8 +707,8 @@ export default function ChatPage() {
                   {editingMessageId && (
                     <button
                       onClick={() => {
-                        setEditingMessageId(null);
-                        setNewMessage('');
+                        setEditingMessageId(null)
+                        setNewMessage('')
                       }}
                       className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
                     >
@@ -592,7 +732,6 @@ export default function ChatPage() {
         </div>
       )}
 
-
       {showChatInfo && selectedChatDetails && (
         <ChatInfo
           chatId={selectedChat!}
@@ -615,13 +754,13 @@ export default function ChatPage() {
                 headers: {
                   Authorization: `Bearer ${localStorage.getItem('fortify_access')}`
                 }
-              });
-              setSelectedChat(null);
-              fetchChats(); // Refresh the chat list
-              setShowDeleteChatModal(false);
+              })
+              setSelectedChat(null)
+              fetchChats()
+              setShowDeleteChatModal(false)
             } catch (error) {
-              console.error('Error deleting chat:', error);
-              setError('Failed to delete the chat. Please try again.');
+              console.error('Error deleting chat:', error)
+              setError('Failed to delete the chat. Please try again.')
             }
           }}
         />

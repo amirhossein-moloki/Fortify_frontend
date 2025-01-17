@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 const images = [
   '/images/fortify_auth1.jpg',
@@ -18,6 +19,7 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -53,8 +55,8 @@ export default function LoginForm() {
         setMessage('Login successful!');
         setUsername('');
         setPassword('');
-        // Redirect to OTP page using window.location.href
-        window.location.href = '/otp'; // تغییر مسیر به صفحه OTP
+        // Redirect to OTP page with username in the URL
+        router.push(`/otp?username=${encodeURIComponent(username)}`);
       } else {
         const errorMessages = [];
 
@@ -165,9 +167,20 @@ export default function LoginForm() {
                 {loading ? 'Logging in...' : 'Log in'}
               </Button>
             </form>
+            <div className="mt-4">
+              <Link href="/forgot-password">
+                <Button
+                  variant="ghost"
+                  className="w-full text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                >
+                  Forgot Password?
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
