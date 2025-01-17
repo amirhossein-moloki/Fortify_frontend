@@ -86,7 +86,8 @@ export default function ChatPage() {
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false)
   const [isEmptyChatList, setIsEmptyChatList] = useState(false)
   const [usernames, setUsernames] = useState<string[]>([])
-  const onlineStatus = useOnlineStatus(usernames)
+  const [token, setToken] = useState<string | null>(null);
+  const onlineStatus = useOnlineStatus(usernames, token || '')
   const router = useRouter()
   const webSocketManagerRef = useRef<WebSocketManager | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -97,6 +98,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     const accessToken = localStorage.getItem('fortify_access')
+    setToken(accessToken);
     const refreshToken = localStorage.getItem('fortify_refresh')
     const username = localStorage.getItem('fortify_username')
 
@@ -153,7 +155,7 @@ export default function ChatPage() {
       .filter(chat => chat.chat_type === 'direct')
       .map(chat => chat.other_user.username)
     setUsernames(directChatUsernames)
-  }, [chats])
+  }, [chats, token])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
