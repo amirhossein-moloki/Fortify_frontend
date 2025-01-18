@@ -14,7 +14,6 @@ import { ChatHeader } from '@/components/chat/ChatHeader'
 import { ChatInfo } from '@/components/chat/ChatInfo'
 import { ImageModal } from '@/components/ui/ImageModal'
 import { DeleteChatModal } from '@/components/chat/DeleteChatModal'
-import { withTokenRefresh } from '@/hocs/withTokenRefresh'
 import { refreshToken } from '@/utils/auth'
 import { useOnlineStatus } from '@/app/hooks/useOnlineStatus'
 
