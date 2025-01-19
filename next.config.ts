@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   },
   // سایر تنظیمات (در صورت نیاز)
   reactStrictMode: true, // این مورد اختیاری است و به‌طور پیش‌فرض فعال است
+  
+  // تنظیم مسیر خروجی برای build
+  distDir: 'build', // مسیر خروجی را به 'build' تغییر می‌دهیم
 };
 
 export default nextConfig;
