@@ -1,5 +1,5 @@
 'use client'
-
+import { Analytics } from "@vercel/analytics/react"
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Camera, Mail, User, MapPin, Globe, Pencil, Calendar, Cake, UserCircle, FileText, Check, X } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'

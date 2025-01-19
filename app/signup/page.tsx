@@ -1,5 +1,5 @@
 'use client';
-
+import { Analytics } from "@vercel/analytics/react"
 import { useState, useEffect } from 'react';
 import { Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';

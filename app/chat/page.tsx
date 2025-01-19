@@ -1,5 +1,5 @@
 'use client'
-
+import { Analytics } from "@vercel/analytics/react"
 import { useState, useEffect, useRef } from 'react'
 import { Menu, Search, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, Key, Sun, Moon, Trash, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
