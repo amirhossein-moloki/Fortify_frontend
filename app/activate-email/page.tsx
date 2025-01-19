@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,9 +9,8 @@ import Image from 'next/image'
 import axios from 'axios'
 import { redirectToChat } from '@/app/actions/auth'
 
-
-
-export default function GmailActivationPage() {
+// کامپوننت اصلی فعال‌سازی ایمیل
+const GmailActivationPage = () => {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [acceptTerms, setAcceptTerms] = useState(false)
@@ -19,8 +18,9 @@ export default function GmailActivationPage() {
   const [activationSuccess, setActivationSuccess] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isResending, setIsResending] = useState(false)
-  
+
   useEffect(() => {
+    // دریافت ایمیل از URL با استفاده از searchParams
     const emailFromUrl = searchParams.get('email')
     if (emailFromUrl) {
       setEmail(emailFromUrl)
@@ -70,7 +70,7 @@ export default function GmailActivationPage() {
     setActivationError('')
     setActivationSuccess('')
 
-    const apiUrl = `$process.env.BASE_URL}api/accounts/resend-activation-email/`
+    const apiUrl = `${process.env.BASE_URL}api/accounts/resend-activation-email/`
     console.log('Sending resend activation email request to:', apiUrl)
 
     try {
@@ -161,3 +161,11 @@ export default function GmailActivationPage() {
   )
 }
 
+// استفاده از Suspense برای مدیریت بارگذاری داده‌های غیرهمزمان
+export default function SuspenseWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <GmailActivationPage />
+    </Suspense>
+  )
+}

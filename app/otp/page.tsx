@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from 'next/link'
@@ -8,7 +8,7 @@ import Image from 'next/image'
 import axios from 'axios'
 import { useSearchParams } from 'next/navigation'
 
-export default function VerificationCodePage() {
+const VerificationCodeForm = () => {
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -17,8 +17,6 @@ export default function VerificationCodePage() {
   const [countdown, setCountdown] = useState(0)
   const searchParams = useSearchParams()
   const username = searchParams.get('username')
-
-
 
   useEffect(() => {
     let timer: NodeJS.Timeout
@@ -116,8 +114,7 @@ export default function VerificationCodePage() {
     } finally {
         setIsResending(false);
     }
-};
-
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-purple-700 via-purple-600 to-purple-500">
@@ -195,3 +192,10 @@ export default function VerificationCodePage() {
   )
 }
 
+export default function VerificationCodePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <VerificationCodeForm />
+    </Suspense>
+  )
+}

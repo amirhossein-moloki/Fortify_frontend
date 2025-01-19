@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation'; // Import useRouter
 
 const images = [
   '/images/fortify_auth1.jpg',
@@ -68,16 +68,7 @@ const PasswordStrengthIndicator: React.FC<{ strength: number }> = ({ strength })
   );
 };
 
-export const getServerSideProps = async ({ params }: { params: { uidb64: string; token: string } }) => {
-  return {
-    props: {
-      uidb64: params.uidb64,
-      token: params.token,
-    },
-  };
-};
-
-const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string }) => {
+const PasswordResetPage = () => {
   const [currentImage, setCurrentImage] = useState(0);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -86,7 +77,20 @@ const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string })
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
-  const router = useRouter();
+  const [uidb64, setUidb64] = useState('');
+  const [token, setToken] = useState('');
+
+  // استفاده از useParams برای دریافت uidb64 و token
+  const params = useParams();
+  const router = useRouter(); // Get router instance
+
+  useEffect(() => {
+    const { uidb64, token } = params; // دریافت پارامترها
+    if (typeof uidb64 === 'string' && typeof token === 'string') {
+      setUidb64(uidb64);
+      setToken(token);
+    }
+  }, [params]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -130,7 +134,7 @@ const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string })
 
       if (response.ok) {
         setMessage(data.message || 'Password changed successfully! Redirecting to login...');
-        setTimeout(() => router.push('/login'), 2000);
+        setTimeout(() => router.push('/login'), 2000); // Use router.push for navigation
       } else {
         setMessage(data.message || 'Failed to change password. Please try again.');
       }
@@ -162,9 +166,7 @@ const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string })
                 src={src}
                 alt={`Slide ${index + 1}`}
                 fill
-                className={`object-cover transition-opacity duration-1000 ${
-                  currentImage === index ? 'opacity-100' : 'opacity-0'
-                }`}
+                className={`object-cover transition-opacity duration-1000 ${currentImage === index ? 'opacity-100' : 'opacity-0'}`}
                 priority={index === 0}
               />
             ))}
@@ -178,9 +180,7 @@ const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string })
               {images.map((_, index) => (
                 <div
                   key={index}
-                  className={`h-1 flex-1 rounded-full ${
-                    currentImage === index ? 'bg-white' : 'bg-white/30'
-                  }`}
+                  className={`h-1 flex-1 rounded-full ${currentImage === index ? 'bg-white' : 'bg-white/30'}`}
                 />
               ))}
             </div>
@@ -191,9 +191,7 @@ const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string })
         <div className="p-8 md:p-12">
           <div className="max-w-md mx-auto">
             <h2 className="text-3xl font-bold text-white mb-2">Reset Password</h2>
-            <p className="text-gray-400 mb-8">
-              Please enter your new password.
-            </p>
+            <p className="text-gray-400 mb-8">Please enter your new password.</p>
 
             {message && <p className={`mb-4 ${message.includes('successfully') ? 'text-green-500' : 'text-red-500'}`}>{message}</p>}
 
@@ -236,9 +234,16 @@ const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string })
                 type="submit"
                 disabled={loading}
               >
-                {loading ? 'Resetting Password...' : 'Reset Password'}
+                {loading ? 'Processing...' : 'Submit'}
               </Button>
             </form>
+
+            <p className="mt-6 text-center text-white">
+              Remembered your password?{' '}
+              <Link href="/login" className="text-blue-500 hover:underline">
+                Login here
+              </Link>
+            </p>
           </div>
         </div>
       </div>

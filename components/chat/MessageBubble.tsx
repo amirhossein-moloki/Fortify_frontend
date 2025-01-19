@@ -34,7 +34,7 @@ export function MessageBubble({
 }: MessageProps) {
   const [isLongPress, setIsLongPress] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleTouchStart = () => {
     timeoutRef.current = setTimeout(() => {
@@ -112,7 +112,7 @@ export function MessageBubble({
             )}
             <div className="text-xs opacity-70 mt-1 text-gray-300 flex items-center justify-end">
               <span>{new Date(timestamp).toLocaleTimeString()}</span>
-              {is_edited && <span className="ml-1 text-xs">(ویرایش شده)</span>}
+              {is_edited && <span className="ml-1 text-xs">(Edited)</span>}
               {isOwn && (
                 <span className="ml-1">
                   {read ? (
@@ -148,4 +148,3 @@ export function MessageBubble({
     </AnimatePresence>
   )
 }
-

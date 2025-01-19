@@ -44,12 +44,12 @@ export function ChatHeader({
   // Function to handle the profile picture URL
   const getProfilePictureUrl = (url: string | undefined) => {
     if (!url) return '/placeholder.svg?height=40&width=40'; // Provide a default placeholder
-    if (url.startsWith('http://localhost:8000')) {
+    if (url.startsWith('${process.env.BASE_URL_MD}')) {
       return url;
     } else if (url.startsWith('/media')) {
-      return `http://localhost:8000${url}`;
+      return `${process.env.BASE_URL_MD}${url}`;
     } else {
-      return `http://localhost:8000/${url}`;
+      return `${process.env.BASE_URL}${url}`;
     }
   }
 

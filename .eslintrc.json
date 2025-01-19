@@ -1,3 +1,22 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": "eslint:recommended",
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true
+  },
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-console": "off",  // غیرفعال کردن ارور برای استفاده از کنسول
+    "@typescript-eslint/no-unused-vars": "off",  // غیرفعال کردن ارور برای متغیرهای غیر استفاده شده
+    "no-unused-vars": "off",  // غیرفعال کردن ارور برای متغیرهای غیر استفاده شده (برای جاوااسکریپت)
+    "no-useless-catch": "off",
+    "no-undef": "off",
+    "no-unsafe-finally": "warn"
+  }
 }

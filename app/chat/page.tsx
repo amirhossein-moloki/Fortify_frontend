@@ -567,7 +567,7 @@ export default function ChatPage() {
                     className="relative"
                   >
                     <img
-                      src={`http://localhost:8000${((chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image) || '').startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
+                      src={`${process.env.BASE_URL_MD}${((chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image) || '').startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
                       alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
                       className="w-12 h-12 rounded-full cursor-pointer"
                     />
@@ -591,7 +591,7 @@ export default function ChatPage() {
                       )}
                     </div>
                     <p className="text-gray-400 text-sm truncate">
-                      {chat.last_message?.content || 'هنوز پیامی ارسال نشده'}
+                      {chat.last_message?.content || ''}
                     </p>
                   </div>
                   {chat.unread_count > 0 && (
