@@ -8,7 +8,7 @@ interface RefreshTokenResponse {
 export async function refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
   try {
     const response = await axios.post<RefreshTokenResponse>(
-      'http://localhost:8000/api/accounts/token/refresh-both/',
+      `${process.env.BASE_URL}api/accounts/token/refresh-both/`,
       { refresh_token: refreshToken }
     );
     return response.data;

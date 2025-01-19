@@ -7,7 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
-const BASE_URL = 'http://localhost:8000';
+
 
 const images = [
   '/images/fortify_auth1.jpg',
@@ -121,7 +121,7 @@ const ChangePasswordForm: React.FC = () => {
     const accessToken = localStorage.getItem('fortify_access');
 
     try {
-      const url = `${BASE_URL}/api/accounts/change-password/`;
+      const url = `${process.env.BASE_URL}/api/accounts/change-password/`;
       console.log('Sending request to:', url);
       console.log('Request data:', { old_password: '******', new_password: '******' });
       console.log('Access Token:', accessToken);

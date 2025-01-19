@@ -90,7 +90,7 @@ export function MessageBubble({
         >
           <Link href={`/profile/${sender}`}>
             <img
-              src={`http://localhost:8000${sender_profile_picture.startsWith('/media') ? '' : '/'}${sender_profile_picture}`}
+              src={`${process.env.BASE_URL_MD}${sender_profile_picture.startsWith('/media') ? '' : '/'}${sender_profile_picture}`}
               alt={sender}
               className="w-8 h-8 rounded-full cursor-pointer"
             />

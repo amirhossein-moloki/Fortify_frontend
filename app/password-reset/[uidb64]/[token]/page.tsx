@@ -7,8 +7,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
-export const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:8000';
-
 const images = [
   '/images/fortify_auth1.jpg',
   '/images/fortify_auth2.jpg',
@@ -70,7 +68,16 @@ const PasswordStrengthIndicator: React.FC<{ strength: number }> = ({ strength })
   );
 };
 
-export default function PasswordResetPage({ params }: { params: { uidb64: string; token: string } }) {
+export const getServerSideProps = async ({ params }: { params: { uidb64: string; token: string } }) => {
+  return {
+    props: {
+      uidb64: params.uidb64,
+      token: params.token,
+    },
+  };
+};
+
+const PasswordResetPage = ({ uidb64, token }: { uidb64: string; token: string }) => {
   const [currentImage, setCurrentImage] = useState(0);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -78,7 +85,6 @@ export default function PasswordResetPage({ params }: { params: { uidb64: string
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tokenValid, setTokenValid] = useState(true);  // Changed to true by default
   const [passwordStrength, setPasswordStrength] = useState(0);
   const router = useRouter();
 
@@ -112,7 +118,7 @@ export default function PasswordResetPage({ params }: { params: { uidb64: string
     }
 
     try {
-      const response = await fetch(`${BASE_URL}/api/accounts/password-reset-confirm/${params.uidb64}/${params.token}/`, {
+      const response = await fetch(`${process.env.BASE_URL}/api/accounts/password-reset-confirm/${uidb64}/${token}/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,54 +197,53 @@ export default function PasswordResetPage({ params }: { params: { uidb64: string
 
             {message && <p className={`mb-4 ${message.includes('successfully') ? 'text-green-500' : 'text-red-500'}`}>{message}</p>}
 
-            {tokenValid && (
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="relative">
-                  <Input
-                    type={showNewPassword ? "text" : "password"}
-                    placeholder="New Password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="bg-[#2D2A3D] border-0 text-white placeholder:text-gray-400 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
-                  >
-                    {showNewPassword ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                <PasswordStrengthIndicator strength={passwordStrength} />
-                <div className="relative">
-                  <Input
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm New Password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="bg-[#2D2A3D] border-0 text-white placeholder:text-gray-400 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
-                  >
-                    {showConfirmPassword ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                <Button
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white"
-                  type="submit"
-                  disabled={loading}
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="New Password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="bg-[#2D2A3D] border-0 text-white placeholder:text-gray-400 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
                 >
-                  {loading ? 'Resetting Password...' : 'Reset Password'}
-                </Button>
-              </form>
-            )}
+                  {showNewPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <PasswordStrengthIndicator strength={passwordStrength} />
+              <div className="relative">
+                <Input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm New Password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="bg-[#2D2A3D] border-0 text-white placeholder:text-gray-400 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                >
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <Button
+                className="w-full bg-purple-500 hover:bg-purple-600 text-white"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? 'Resetting Password...' : 'Reset Password'}
+              </Button>
+            </form>
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
 
+export default PasswordResetPage;

@@ -7,7 +7,7 @@ export async function refreshToken() {
   }
 
   try {
-    const response = await axios.post('http://localhost:8000/api/accounts/token/refresh-both/', {
+    const response = await axios.post('${process.env.BASE_URL}api/accounts/token/refresh-both/', {
       refresh_token: refreshToken
     });
 

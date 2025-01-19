@@ -188,7 +188,7 @@ export default function ProfilePage() {
         <div className="flex flex-col items-center mb-8">
           <div className="relative">
             <img
-              src={pendingProfilePicture ? URL.createObjectURL(pendingProfilePicture) : `http://localhost:8000${profile.profile.user.profile_picture?.startsWith('/') ? '' : '/'}${profile.profile.user.profile_picture}`}
+              src={pendingProfilePicture ? URL.createObjectURL(pendingProfilePicture) : `${process.env.BASE_URL_MD}${profile.profile.user.profile_picture?.startsWith('/') ? '' : '/'}${profile.profile.user.profile_picture}`}
               alt={profile.profile.user.username}
               className="w-24 h-24 rounded-full object-cover cursor-pointer"
               onClick={() => setIsModalOpen(true)}
@@ -324,7 +324,7 @@ export default function ProfilePage() {
 
       {isModalOpen && (
         <ProfilePictureModal
-          imageUrl={pendingProfilePicture ? URL.createObjectURL(pendingProfilePicture) : `http://localhost:8000${profile.profile.user.profile_picture?.startsWith('/') ? '' : '/'}${profile.profile.user.profile_picture}`}
+          imageUrl={pendingProfilePicture ? URL.createObjectURL(pendingProfilePicture) : `${process.env.BASE_URL_MD}${profile.profile.user.profile_picture?.startsWith('/') ? '' : '/'}${profile.profile.user.profile_picture}`}
           onClose={() => setIsModalOpen(false)}
           onUpdate={handleProfilePictureUpdate}
         />

@@ -9,7 +9,7 @@ import Image from 'next/image'
 import axios from 'axios'
 import { redirectToChat } from '@/app/actions/auth'
 
-const BASE_URL = 'http://localhost:8000/'
+
 
 export default function GmailActivationPage() {
   const searchParams = useSearchParams()
@@ -40,7 +40,7 @@ export default function GmailActivationPage() {
 
     const uid = searchParams.get('uid')
     const token = searchParams.get('token')
-    const apiUrl = `${BASE_URL}api/accounts/activate-email/${uid}/${token}/`
+    const apiUrl = `${process.env.BASE_URL}api/accounts/activate-email/${uid}/${token}/`
     console.log('Sending activation request to:', apiUrl)
 
     try {
@@ -70,7 +70,7 @@ export default function GmailActivationPage() {
     setActivationError('')
     setActivationSuccess('')
 
-    const apiUrl = `${BASE_URL}api/accounts/resend-activation-email/`
+    const apiUrl = `$process.env.BASE_URL}api/accounts/resend-activation-email/`
     console.log('Sending resend activation email request to:', apiUrl)
 
     try {

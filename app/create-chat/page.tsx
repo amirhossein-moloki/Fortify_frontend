@@ -63,7 +63,7 @@ export default function CreateChatPage() {
 
     try {
       const response = await axios.post(
-        'http://localhost:8000/api/chats/chat/create/',
+        `${process.env.BASE_URL}api/chats/chat/create/`,
         formData,
         {
           headers: {

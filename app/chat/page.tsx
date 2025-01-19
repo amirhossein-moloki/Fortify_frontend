@@ -238,7 +238,7 @@ export default function ChatPage() {
     setError(null)
 
     try {
-      const response = await axios.get('http://localhost:8000/api/chats/', {
+      const response = await axios.get(`${process.env.BASE_URL}api/chats/`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -449,7 +449,7 @@ export default function ChatPage() {
         }
       }
       try {
-        const response = await axios.delete('http://localhost:8000/api/accounts/delete-account/', {
+        const response = await axios.delete(`process.env.BASE_URLapi/accounts/delete-account/`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -559,7 +559,7 @@ export default function ChatPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (chat.chat_type !== 'direct') {
-                        setEnlargedImage(`http://localhost:8000${chat.group_image.startsWith('/media') ? '' : '/'}${chat.group_image}`);
+                        setEnlargedImage(`${process.env.BASE_URL_MD}${chat.group_image.startsWith('/media') ? '' : '/'}${chat.group_image}`);
                       } else {
                         router.push(`/profile/${chat.other_user.username}`);
                       }
@@ -751,7 +751,7 @@ export default function ChatPage() {
           onClose={() => setShowDeleteChatModal(false)}
           onDelete={async () => {
             try {
-              await axios.delete(`http://localhost:8000/api/chats/${selectedChat}/`, {
+              await axios.delete(`${process.env.BASE_URL}api/chats/${selectedChat}/`, {
                 headers: {
                   Authorization: `Bearer ${localStorage.getItem('fortify_access')}`
                 }

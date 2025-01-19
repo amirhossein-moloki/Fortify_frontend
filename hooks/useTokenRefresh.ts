@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 
-const REFRESH_URL = 'http://localhost:8000/api/accounts/token/refresh-both/';
+const REFRESH_URL = '${process.env.BASE_URL}api/accounts/token/refresh-both/';
 
 export function useTokenRefresh() {
   const [isRefreshing, setIsRefreshing] = useState(false);

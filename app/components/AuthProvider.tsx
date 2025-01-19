@@ -70,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshTokens = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/accounts/token/refresh-both/', {
+      const response = await fetch(`${process.env.BASE_URL}api/accounts/token/refresh-both/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

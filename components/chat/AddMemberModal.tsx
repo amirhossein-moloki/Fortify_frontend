@@ -46,7 +46,7 @@ export function AddMemberModal({ chatId, onClose, onSuccess }: AddMemberModalPro
     try {
       const token = localStorage.getItem('fortify_access')
       const response = await axios.post(
-        `http://localhost:8000/api/chats/chat/${chatId}/add-users/`,
+        `${process.env.BASE_URL}api/chats/chat/${chatId}/add-users/`,
         { usernames: filteredUsernames },
         {
           headers: {

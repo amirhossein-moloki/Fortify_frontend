@@ -98,7 +98,7 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
       if (!token) throw new Error('No authentication token found')
 
       const response = await axios.post(
-        `http://localhost:8000/api/chats/chat/${chatId}/add-users/`,
+        `${process.env.BASE_URL}api/chats/chat/${chatId}/add-users/`,
         { usernames: [newMemberUsername] },
         {
           headers: {
@@ -221,7 +221,7 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
           <div className="flex items-center space-x-3">
             <div className="relative">
               <img 
-                src={`http://localhost:8000${chatDetails.group_image}`} 
+                src={`${process.env.BASE_URL_MD}${chatDetails.group_image}`} 
                 alt={chatDetails.group_name}
                 className="w-12 h-12 rounded-full object-cover"
               />
@@ -328,7 +328,7 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
                   />
                 )}
                 <img
-                  src={`http://localhost:8000${participant.profile_picture}`}
+                  src={`${process.env.BASE_URL_MD}${participant.profile_picture}`}
                   alt={participant.username}
                   className="w-10 h-10 rounded-full object-cover"
                 />
@@ -405,21 +405,28 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
           </div>
         )}
         {showDeleteModal && (
-          <DeleteChatModal
+            <DeleteChatModal
             chatId={chatId}
             onClose={() => setShowDeleteModal(false)}
             onDelete={async () => {
               try {
                 const token = localStorage.getItem('fortify_access');
                 if (!token) throw new Error('No authentication token found');
-
-                await axios.delete(`http://localhost:8000/api/chats/chat/${chatId}/delete/`, {
+        
+                const apiUrl = `${process.env.BASE_URL}api/chats/chat/${chatId}/delete/`;
+                console.log('API URL:', apiUrl); // چاپ URL درخواست
+        
+                await axios.delete(apiUrl, {
                   headers: {
                     Authorization: `Bearer ${token}`,
                   },
                 });
+                
+                // بسته شدن Modal
                 onClose(); // Close the ChatInfo component
-                router.push('/chat'); // Redirect to the main chat page
+                
+                // رفرش صفحه
+                window.location.reload(); // رفرش صفحه بعد از حذف چت
               } catch (error) {
                 console.error('Error deleting chat:', error);
                 setError('Failed to delete the chat. Please try again.');

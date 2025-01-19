@@ -12,7 +12,7 @@ const images = [
   '/images/fortify_auth2.jpg',
   '/images/fortify_auth3.jpg',
 ];
-export const BASE_URL = 'http://localhost:8000';
+
 
 
 export default function ForgotPasswordForm() {
@@ -37,7 +37,7 @@ export default function ForgotPasswordForm() {
     setIsSuccess(false);
 
     try {
-      const response = await fetch(`${BASE_URL}/api/accounts/password-reset/`, {
+      const response = await fetch(`${process.env.BASE_URL}api/accounts/password-reset/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
