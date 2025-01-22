@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
     BASE_URL_MD: 'http://fortify-c8os.onrender.com:8000',
   },
   reactStrictMode: true,
-  distDir: 'build',
 };
 
 export default nextConfig;

@@ -1,7 +1,4 @@
 {
-  "build": {
-    "outputDirectory": "build"
-  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
   ]
