@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "latest",
@@ -19,7 +19,7 @@
     "clsx": "latest",
     "framer-motion": "latest",
     "lucide-react": "latest",
-    "next": "latest",
+    "next": "^15.1.5",
     "react": "latest",
     "react-dom": "latest",
     "socket.io-client": "latest",
