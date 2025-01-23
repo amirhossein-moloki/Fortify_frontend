@@ -1,21 +1,38 @@
-'use client'
+"use client"
 import { Analytics } from "@vercel/analytics/react"
-import { useState, useEffect, useRef } from 'react'
-import { Menu, Search, Plus, Phone, BookmarkIcon, Settings, Users, MessageSquare, X, Send, Paperclip, Key, Sun, Moon, Trash, LogOut } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useRouter } from 'next/navigation'
-import axios from 'axios'
-import { WebSocketManager } from '@/utils/WebSocketManager'
-import { MessageBubble } from '@/components/chat/MessageBubble'
-import { ProfileSection } from '@/components/profile/ProfileSection'
-import { getUserProfile, UserProfile, getChatParticipants, ChatDetails, leaveChat } from '@/utils/api'
-import Link from 'next/link'
-import { ChatHeader } from '@/components/chat/ChatHeader'
-import { ChatInfo } from '@/components/chat/ChatInfo'
-import { ImageModal } from '@/components/ui/ImageModal'
-import { DeleteChatModal } from '@/components/chat/DeleteChatModal'
-import { refreshToken } from '@/utils/auth'
-import { useOnlineStatus } from '@/app/hooks/useOnlineStatus'
+import { useState, useEffect, useRef } from "react"
+import {
+  Menu,
+  Search,
+  Plus,
+  Phone,
+  BookmarkIcon,
+  Settings,
+  Users,
+  MessageSquare,
+  X,
+  Send,
+  Paperclip,
+  Key,
+  Sun,
+  Moon,
+  Trash,
+  LogOut,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
+import axios from "axios"
+import { WebSocketManager } from "@/utils/WebSocketManager"
+import { MessageBubble } from "@/components/chat/MessageBubble"
+import { ProfileSection } from "@/components/profile/ProfileSection"
+import { getUserProfile, type UserProfile, getChatParticipants, type ChatDetails, leaveChat } from "@/utils/api"
+import Link from "next/link"
+import { ChatHeader } from "@/components/chat/ChatHeader"
+import { ChatInfo } from "@/components/chat/ChatInfo"
+import { ImageModal } from "@/components/ui/ImageModal"
+import { DeleteChatModal } from "@/components/chat/DeleteChatModal"
+import { refreshToken } from "@/utils/auth"
+import { useOnlineStatus } from "@/app/hooks/useOnlineStatus"
 
 declare global {
   interface Window {
@@ -72,7 +89,7 @@ export default function ChatPage() {
   const [nightMode, setNightMode] = useState(false)
   const [chats, setChats] = useState<Chat[]>([])
   const [messages, setMessages] = useState<Message[]>([])
-  const [newMessage, setNewMessage] = useState('')
+  const [newMessage, setNewMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
@@ -83,10 +100,9 @@ export default function ChatPage() {
   const [selectedChatDetails, setSelectedChatDetails] = useState<ChatDetails | null>(null)
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false)
-  const [isEmptyChatList, setIsEmptyChatList] = useState(false)
   const [usernames, setUsernames] = useState<string[]>([])
-  const [token, setToken] = useState<string | null>(null);
-  const onlineStatus = useOnlineStatus(usernames, token || '')
+  const [token, setToken] = useState<string | null>(null)
+  const onlineStatus = useOnlineStatus(usernames, token || "")
   const router = useRouter()
   const webSocketManagerRef = useRef<WebSocketManager | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -96,13 +112,13 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const accessToken = localStorage.getItem('fortify_access')
-    setToken(accessToken);
-    const refreshToken = localStorage.getItem('fortify_refresh')
-    const username = localStorage.getItem('fortify_username')
+    const accessToken = localStorage.getItem("fortify_access")
+    setToken(accessToken)
+    const refreshToken = localStorage.getItem("fortify_refresh")
+    const username = localStorage.getItem("fortify_username")
 
     if (!accessToken || !refreshToken || !username) {
-      router.push('/login')
+      router.push("/login")
       return
     }
 
@@ -121,38 +137,36 @@ export default function ChatPage() {
       return await audioContextRef.current!.decodeAudioData(arrayBuffer)
     }
 
-    Promise.all([
-      loadAudio('/send.mp3'),
-      loadAudio('/receive.mp3'),
-      loadAudio('/edit.mp3')
-    ]).then(([sendBuffer, receiveBuffer, editBuffer]) => {
-      sendAudioBufferRef.current = sendBuffer
-      receiveAudioBufferRef.current = receiveBuffer
-      editAudioBufferRef.current = editBuffer
-    }).catch(error => {
-      console.error('Error loading audio files:', error)
-    })
+    Promise.all([loadAudio("/send.mp3"), loadAudio("/receive.mp3"), loadAudio("/edit.mp3")])
+      .then(([sendBuffer, receiveBuffer, editBuffer]) => {
+        sendAudioBufferRef.current = sendBuffer
+        receiveAudioBufferRef.current = receiveBuffer
+        editAudioBufferRef.current = editBuffer
+      })
+      .catch((error) => {
+        console.error("Error loading audio files:", error)
+      })
 
     const handleResize = () => {
       setIsMobileView(window.innerWidth < 768)
     }
 
     handleResize()
-    window.addEventListener('resize', handleResize)
+    window.addEventListener("resize", handleResize)
 
     return () => {
       webSocketManagerRef.current?.disconnect()
       if (audioContextRef.current) {
         audioContextRef.current.close()
       }
-      window.removeEventListener('resize', handleResize)
+      window.removeEventListener("resize", handleResize)
     }
   }, [router])
 
   useEffect(() => {
     const directChatUsernames = chats
-      .filter(chat => chat.chat_type === 'direct')
-      .map(chat => chat.other_user.username)
+      .filter((chat) => chat.chat_type === "direct")
+      .map((chat) => chat.other_user.username)
     setUsernames(directChatUsernames)
   }, [chats, token])
 
@@ -175,61 +189,66 @@ export default function ChatPage() {
 
   const handleWebSocketMessage = (data: any) => {
     switch (data.action) {
-      case 'send':
-        setMessages(prevMessages => {
-          if (prevMessages.some(msg => msg.id === data.message_id)) {
+      case "send":
+        setMessages((prevMessages) => {
+          if (prevMessages.some((msg) => msg.id === data.message_id)) {
             return prevMessages
           }
-          if (data.sender !== localStorage.getItem('fortify_username')) {
+          if (data.sender !== localStorage.getItem("fortify_username")) {
             playSound(receiveAudioBufferRef.current)
           } else {
             playSound(sendAudioBufferRef.current)
           }
-          return [...prevMessages, {
-            id: data.message_id,
-            content: data.message,
-            sender: data.sender,
-            sender_profile_picture: data.sender_profile_picture,
-            sender_bio: data.sender_bio,
-            timestamp: data.timestamp,
-            isOwn: data.sender === localStorage.getItem('fortify_username'),
-            is_edited: data.is_edited,
-            is_deleted: data.is_deleted,
-            read_by: data.read_by,
-            file: data.file
-          }]
+          return [
+            ...prevMessages,
+            {
+              id: data.message_id,
+              content: data.message,
+              sender: data.sender,
+              sender_profile_picture: data.sender_profile_picture,
+              sender_bio: data.sender_bio,
+              timestamp: data.timestamp,
+              isOwn: data.sender === localStorage.getItem("fortify_username"),
+              is_edited: data.is_edited,
+              is_deleted: data.is_deleted,
+              read_by: data.read_by,
+              file: data.file,
+            },
+          ]
         })
         break
-      case 'edit':
-        setMessages(prevMessages => prevMessages.map(msg =>
-          msg.id === data.message_id ? { ...msg, content: data.message, is_edited: data.is_edited } : msg
-        ))
-        if (data.sender !== localStorage.getItem('fortify_username')) {
+      case "edit":
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === data.message_id ? { ...msg, content: data.message, is_edited: data.is_edited } : msg,
+          ),
+        )
+        if (data.sender !== localStorage.getItem("fortify_username")) {
           playSound(editAudioBufferRef.current)
         }
         break
-      case 'delete':
-        setMessages(prevMessages => prevMessages.map(msg =>
-          msg.id === data.message_id ? { ...msg, is_deleted: true } : msg
-        ))
+      case "delete":
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) => (msg.id === data.message_id ? { ...msg, is_deleted: true } : msg)),
+        )
         break
-      case 'read':
-        setMessages(prevMessages => prevMessages.map(msg =>
-          msg.id === data.message_id ? { ...msg, read_by: data.read_by } : msg
-        ))
+      case "read":
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) => (msg.id === data.message_id ? { ...msg, read_by: data.read_by } : msg)),
+        )
         break
       default:
-        console.error('Unknown action:', data.action)
+        console.error("Unknown action:", data.action)
     }
   }
 
   const fetchChats = async () => {
-    let token = localStorage.getItem('fortify_access')
+    let token = localStorage.getItem("fortify_access")
     if (!token) {
       await handleTokenRefresh()
-      token = localStorage.getItem('fortify_access')
+      token = localStorage.getItem("fortify_access")
       if (!token) {
-        router.push('/login')
+        router.push("/login")
         return
       }
     }
@@ -240,20 +259,18 @@ export default function ChatPage() {
     try {
       const response = await axios.get(`${process.env.BASE_URL}api/chats/`, {
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
       if (Array.isArray(response.data) && response.data.length === 0) {
         setChats([])
-        setIsEmptyChatList(true)
         setError(null)
       } else {
         setChats(response.data)
-        setIsEmptyChatList(false)
         setError(null)
       }
     } catch (error) {
-      console.error('Error fetching chats:', error)
+      console.error("Error fetching chats:", error)
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 401) {
           await handleTokenRefresh()
@@ -262,7 +279,7 @@ export default function ChatPage() {
           setError(`Server error: ${error.response?.status}. Please try again.`)
         }
       } else {
-        setError('An unknown error occurred. Please try again.')
+        setError("An unknown error occurred. Please try again.")
       }
     } finally {
       setLoading(false)
@@ -276,12 +293,12 @@ export default function ChatPage() {
   const handleChatSelect = async (chatId: number) => {
     setSelectedChat(chatId)
     setMessages([])
-    let token = localStorage.getItem('fortify_access')
+    let token = localStorage.getItem("fortify_access")
     if (!token) {
       await handleTokenRefresh()
-      token = localStorage.getItem('fortify_access')
+      token = localStorage.getItem("fortify_access")
       if (!token) {
-        router.push('/login')
+        router.push("/login")
         return
       }
     }
@@ -299,9 +316,9 @@ export default function ChatPage() {
       const chatDetails = await getChatParticipants(chatId, token)
       setSelectedChatDetails(chatDetails)
 
-      if (chatDetails.chat_type === 'direct') {
+      if (chatDetails.chat_type === "direct") {
         const otherUser = chatDetails.participants.find(
-          participant => participant.username !== localStorage.getItem('fortify_username')
+          (participant) => participant.username !== localStorage.getItem("fortify_username"),
         )
         if (otherUser) {
           chatDetails.other_user = otherUser
@@ -309,15 +326,17 @@ export default function ChatPage() {
       }
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/chats/chat/${chatId}/messages/`, {
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
-      setMessages(response.data.map((msg: any) => ({
-        ...msg,
-        isOwn: msg.sender === localStorage.getItem('fortify_username')
-      })))
+      setMessages(
+        response.data.map((msg: any) => ({
+          ...msg,
+          isOwn: msg.sender === localStorage.getItem("fortify_username"),
+        })),
+      )
     } catch (error) {
-      console.error('Error fetching chat details or messages:', error)
+      console.error("Error fetching chat details or messages:", error)
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         await handleTokenRefresh()
         handleChatSelect(chatId) // Retry after refresh
@@ -333,7 +352,7 @@ export default function ChatPage() {
       } else {
         webSocketManagerRef.current.sendMessage(newMessage.trim())
       }
-      setNewMessage('')
+      setNewMessage("")
     }
   }
 
@@ -350,8 +369,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (selectedChat && webSocketManagerRef.current) {
-      const unreadMessages = messages.filter(msg => !msg.isOwn && !msg.read_by.includes(localStorage.getItem('fortify_username') || ''))
-      unreadMessages.forEach(msg => {
+      const unreadMessages = messages.filter(
+        (msg) => !msg.isOwn && !msg.read_by.includes(localStorage.getItem("fortify_username") || ""),
+      )
+      unreadMessages.forEach((msg) => {
         webSocketManagerRef.current?.markAsRead(msg.id)
       })
     }
@@ -361,9 +382,9 @@ export default function ChatPage() {
     let currentToken = token
     if (!currentToken) {
       await handleTokenRefresh()
-      currentToken = localStorage.getItem('fortify_access') || ''
+      currentToken = localStorage.getItem("fortify_access") || ""
       if (!currentToken) {
-        router.push('/login')
+        router.push("/login")
         return
       }
     }
@@ -371,16 +392,16 @@ export default function ChatPage() {
       const profileData = await getUserProfile(username, currentToken)
       setUserProfile(profileData)
     } catch (error) {
-      console.error('Error fetching user profile:', error)
+      console.error("Error fetching user profile:", error)
       if (axios.isAxiosError(error) && error.response) {
         if (error.response.status === 401) {
           await handleTokenRefresh()
-          fetchUserProfile(username, localStorage.getItem('fortify_access') || '')
+          fetchUserProfile(username, localStorage.getItem("fortify_access") || "")
         } else {
           setError(`Failed to fetch user profile. Server returned ${error.response.status}.`)
         }
       } else {
-        setError('An unexpected error occurred while fetching the user profile.')
+        setError("An unexpected error occurred while fetching the user profile.")
       }
     }
   }
@@ -390,24 +411,22 @@ export default function ChatPage() {
   }
 
   const handleCreateChat = () => {
-    router.push('/create-chat')
+    router.push("/create-chat")
   }
 
   const handleChatUpdate = (updatedChat: ChatDetails) => {
     setSelectedChatDetails(updatedChat)
-    setChats(prevChats => prevChats.map(chat => 
-      chat.id === updatedChat.id ? { ...chat, ...updatedChat } : chat
-    ))
+    setChats((prevChats) => prevChats.map((chat) => (chat.id === updatedChat.id ? { ...chat, ...updatedChat } : chat)))
   }
 
   const handleLeaveChat = async () => {
     if (!selectedChat) return
-    let token = localStorage.getItem('fortify_access')
+    let token = localStorage.getItem("fortify_access")
     if (!token) {
       await handleTokenRefresh()
-      token = localStorage.getItem('fortify_access')
+      token = localStorage.getItem("fortify_access")
       if (!token) {
-        router.push('/login')
+        router.push("/login")
         return
       }
     }
@@ -416,12 +435,12 @@ export default function ChatPage() {
       setSelectedChat(null)
       fetchChats()
     } catch (error) {
-      console.error('Error leaving chat:', error)
+      console.error("Error leaving chat:", error)
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         await handleTokenRefresh()
         handleLeaveChat()
       } else {
-        setError('Failed to leave the chat. Please try again.')
+        setError("Failed to leave the chat. Please try again.")
       }
     }
   }
@@ -431,66 +450,66 @@ export default function ChatPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('fortify_access')
-    localStorage.removeItem('fortify_refresh')
-    localStorage.removeItem('fortify_username')
-    router.push('/login')
+    localStorage.removeItem("fortify_access")
+    localStorage.removeItem("fortify_refresh")
+    localStorage.removeItem("fortify_username")
+    router.push("/login")
   }
 
   const handleDeleteAccount = async () => {
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      let token = localStorage.getItem('fortify_access')
+    if (window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+      let token = localStorage.getItem("fortify_access")
       if (!token) {
         await handleTokenRefresh()
-        token = localStorage.getItem('fortify_access')
+        token = localStorage.getItem("fortify_access")
         if (!token) {
-          router.push('/login')
+          router.push("/login")
           return
         }
       }
       try {
         const response = await axios.delete(`process.env.BASE_URLapi/accounts/delete-account/`, {
           headers: {
-            Authorization: `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         })
         if (response.status === 204) {
-          alert('Your account has been successfully deleted.')
+          alert("Your account has been successfully deleted.")
           handleLogout()
         }
       } catch (error) {
-        console.error('Error deleting account:', error)
+        console.error("Error deleting account:", error)
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           await handleTokenRefresh()
           handleDeleteAccount()
         } else {
-          alert('Failed to delete account. Please try again.')
+          alert("Failed to delete account. Please try again.")
         }
       }
     }
   }
 
   const handleTokenRefresh = async () => {
-    const currentRefreshToken = localStorage.getItem('fortify_refresh')
+    const currentRefreshToken = localStorage.getItem("fortify_refresh")
     if (!currentRefreshToken) {
-      console.error('No refresh token found')
-      router.push('/login')
+      console.error("No refresh token found")
+      router.push("/login")
       return
     }
 
     try {
       const response = await refreshToken(currentRefreshToken)
       if (response.access_token) {
-        localStorage.setItem('fortify_access', response.access_token)
+        localStorage.setItem("fortify_access", response.access_token)
         if (response.refresh_token) {
-          localStorage.setItem('fortify_refresh', response.refresh_token)
+          localStorage.setItem("fortify_refresh", response.refresh_token)
         }
       } else {
-        throw new Error('No access token received')
+        throw new Error("No access token received")
       }
     } catch (error) {
-      console.error('Error refreshing token:', error)
-      router.push('/login')
+      console.error("Error refreshing token:", error)
+      router.push("/login")
     }
   }
 
@@ -507,26 +526,17 @@ export default function ChatPage() {
   }
 
   return (
-    <div className={cn(
-      "h-screen flex bg-[#1F1D2B]",
-      nightMode && "dark"
-    )}>
+    <div className={cn("h-screen flex bg-[#1F1D2B]", nightMode && "dark")}>
       {/* Chat List */}
       {(!isMobileView || (isMobileView && !selectedChat)) && (
         <div className="w-full md:w-96 bg-[#2D2A3D] flex-shrink-0 border-r border-gray-800 relative overflow-hidden">
           <div className="p-4 border-b border-gray-800">
             <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={toggleSidebar}
-                className="p-2 hover:bg-gray-700 rounded-lg"
-              >
+              <button onClick={toggleSidebar} className="p-2 hover:bg-gray-700 rounded-lg">
                 <Menu className="w-5 h-5 text-gray-400" />
               </button>
               <h2 className="text-xl font-bold text-white">Chats</h2>
-              <button
-                onClick={handleCreateChat}
-                className="p-2 hover:bg-gray-700 rounded-lg"
-              >
+              <button onClick={handleCreateChat} className="p-2 hover:bg-gray-700 rounded-lg">
                 <Plus className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -541,9 +551,10 @@ export default function ChatPage() {
           </div>
 
           <div className="overflow-y-auto h-[calc(100vh-5rem)]">
-            {isEmptyChatList ? (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                شما هنوز هیچ چتی ندارید
+            {chats.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 p-4 text-center">
+                <p className="mb-4">You don't have any chats yet.</p>
+                <p>Start a new conversation by clicking the plus icon above!</p>
               </div>
             ) : (
               chats.map((chat) => (
@@ -552,29 +563,31 @@ export default function ChatPage() {
                   onClick={() => handleChatSelect(chat.id)}
                   className={cn(
                     "w-full p-4 flex items-center space-x-3 hover:bg-gray-800/50",
-                    selectedChat === chat.id && "bg-gray-800/50"
+                    selectedChat === chat.id && "bg-gray-800/50",
                   )}
                 >
-                  <div 
+                  <div
                     onClick={(e) => {
-                      e.stopPropagation();
-                      if (chat.chat_type !== 'direct') {
-                        setEnlargedImage(`${process.env.BASE_URL_MD}${chat.group_image.startsWith('/media') ? '' : '/'}${chat.group_image}`);
+                      e.stopPropagation()
+                      if (chat.chat_type !== "direct") {
+                        setEnlargedImage(
+                          `${process.env.BASE_URL_MD}${chat.group_image.startsWith("/media") ? "" : "/"}${chat.group_image}`,
+                        )
                       } else {
-                        router.push(`/profile/${chat.other_user.username}`);
+                        router.push(`/profile/${chat.other_user.username}`)
                       }
                     }}
                     className="relative"
                   >
                     <img
-                      src={`${process.env.BASE_URL_MD}${((chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image) || '').startsWith('/media') ? '' : '/'}${chat.chat_type === 'direct' ? chat.other_user.profile_picture : chat.group_image}`}
-                      alt={chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
+                      src={`${process.env.BASE_URL_MD}${((chat.chat_type === "direct" ? chat.other_user.profile_picture : chat.group_image) || "").startsWith("/media") ? "" : "/"}${chat.chat_type === "direct" ? chat.other_user.profile_picture : chat.group_image}`}
+                      alt={chat.chat_type === "direct" ? chat.other_user.username : chat.group_name}
                       className="w-12 h-12 rounded-full cursor-pointer"
                     />
-                    {chat.chat_type === 'direct' && (
-                      <div 
+                    {chat.chat_type === "direct" && (
+                      <div
                         className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${
-                          onlineStatus[chat.other_user.username] ? 'bg-green-500' : 'bg-gray-500'
+                          onlineStatus[chat.other_user.username] ? "bg-green-500" : "bg-gray-500"
                         }`}
                       ></div>
                     )}
@@ -582,7 +595,7 @@ export default function ChatPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
                       <h3 className="text-white font-medium truncate">
-                        {chat.chat_type === 'direct' ? chat.other_user.username : chat.group_name}
+                        {chat.chat_type === "direct" ? chat.other_user.username : chat.group_name}
                       </h3>
                       {chat.last_message && (
                         <span className="text-gray-400 text-sm flex-shrink-0">
@@ -590,9 +603,7 @@ export default function ChatPage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-gray-400 text-sm truncate">
-                      {chat.last_message?.content || ''}
-                    </p>
+                    <p className="text-gray-400 text-sm truncate">{chat.last_message?.content || ""}</p>
                   </div>
                   {chat.unread_count > 0 && (
                     <span className="bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -605,16 +616,15 @@ export default function ChatPage() {
           </div>
 
           {/* Sidebar Navigation */}
-          <div className={cn(
-            "absolute top-0 left-0 w-3/4 h-full bg-[#2D2A3D] transition-transform duration-300 ease-in-out",
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          )}>
+          <div
+            className={cn(
+              "absolute top-0 left-0 w-3/4 h-full bg-[#2D2A3D] transition-transform duration-300 ease-in-out",
+              sidebarOpen ? "translate-x-0" : "-translate-x-full",
+            )}
+          >
             <div className="p-4 border-b border-gray-800 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Menu</h2>
-              <button
-                onClick={()=> setSidebarOpen(false)}
-                className="p-2 hover:bg-gray-700 rounded-lg"
-              >
+              <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-gray-700 rounded-lg">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -630,8 +640,12 @@ export default function ChatPage() {
               <nav className="space-y-2 p-4">
                 {[
                   { icon: MessageSquare, label: "New Chat", onClick: handleCreateChat },
-                  { icon: nightMode ? Sun : Moon, label: nightMode ? "Day Mode" : "Night Mode", onClick: () => setNightMode(!nightMode) },
-                  { icon: Key, label: "Change Password", onClick: () => router.push('/change-password') },
+                  {
+                    icon: nightMode ? Sun : Moon,
+                    label: nightMode ? "Day Mode" : "Night Mode",
+                    onClick: () => setNightMode(!nightMode),
+                  },
+                  { icon: Key, label: "Change Password", onClick: () => router.push("/change-password") },
                   { icon: LogOut, label: "Log Out", onClick: handleLogout },
                   { icon: Trash, label: "Delete Account", onClick: handleDeleteAccount },
                 ].map((item, index) => (
@@ -658,16 +672,32 @@ export default function ChatPage() {
               <ChatHeader
                 chatId={selectedChat}
                 chatType={selectedChatDetails.chat_type}
-                chatName={selectedChatDetails.chat_type === 'direct' ? selectedChatDetails.other_user?.username || '' : selectedChatDetails.group_name || ''}
-                username={selectedChatDetails.chat_type === 'direct' ? selectedChatDetails.other_user?.username || '' : ''}
+                chatName={
+                  selectedChatDetails.chat_type === "direct"
+                    ? selectedChatDetails.other_user?.username || ""
+                    : selectedChatDetails.group_name || ""
+                }
+                username={
+                  selectedChatDetails.chat_type === "direct" ? selectedChatDetails.other_user?.username || "" : ""
+                }
                 memberCount={selectedChatDetails.participants.length}
-                profilePicture={selectedChatDetails.chat_type === 'direct' ? selectedChatDetails.other_user?.profile_picture || '' : selectedChatDetails.group_image || ''}
-                isAdmin={selectedChatDetails.group_admin?.some(admin => admin.id === userProfile?.profile.user.id) || false}
+                profilePicture={
+                  selectedChatDetails.chat_type === "direct"
+                    ? selectedChatDetails.other_user?.profile_picture || ""
+                    : selectedChatDetails.group_image || ""
+                }
+                isAdmin={
+                  selectedChatDetails.group_admin?.some((admin) => admin.id === userProfile?.profile.user.id) || false
+                }
                 isMobileView={isMobileView}
                 onBackClick={() => setSelectedChat(null)}
                 onChatUpdate={handleChatUpdate}
                 onLeaveChat={handleLeaveChat}
-                isOnline={selectedChatDetails.chat_type === 'direct' ? onlineStatus[selectedChatDetails.other_user?.username || ''] : undefined}
+                isOnline={
+                  selectedChatDetails.chat_type === "direct"
+                    ? onlineStatus[selectedChatDetails.other_user?.username || ""]
+                    : undefined
+                }
               />
 
               {/* Messages */}
@@ -681,7 +711,7 @@ export default function ChatPage() {
                     sender_profile_picture={message.sender_profile_picture}
                     timestamp={message.timestamp}
                     isOwn={message.isOwn}
-                    read={message.read_by.includes(localStorage.getItem('fortify_username') || '')}
+                    read={message.read_by.includes(localStorage.getItem("fortify_username") || "")}
                     is_edited={message.is_edited}
                     is_deleted={message.is_deleted}
                     onEdit={(newContent) => handleStartEdit(message.id, newContent)}
@@ -701,7 +731,7 @@ export default function ChatPage() {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     placeholder={editingMessageId ? "Edit your message..." : "Type your message..."}
                     className="flex-1 bg-[#2D2A3D] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
@@ -709,7 +739,7 @@ export default function ChatPage() {
                     <button
                       onClick={() => {
                         setEditingMessageId(null)
-                        setNewMessage('')
+                        setNewMessage("")
                       }}
                       className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
                     >
@@ -720,7 +750,7 @@ export default function ChatPage() {
                     onClick={handleSendMessage}
                     className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                   >
-                    {editingMessageId ? 'Update' : 'Send'}
+                    {editingMessageId ? "Update" : "Send"}
                   </button>
                 </div>
               </div>
@@ -734,17 +764,9 @@ export default function ChatPage() {
       )}
 
       {showChatInfo && selectedChatDetails && (
-        <ChatInfo
-          chatId={selectedChat!}
-          onClose={() => setShowChatInfo(false)}
-        />
+        <ChatInfo chatId={selectedChat!} onClose={() => setShowChatInfo(false)} />
       )}
-      {enlargedImage && (
-        <ImageModal
-          imageUrl={enlargedImage}
-          onClose={() => setEnlargedImage(null)}
-        />
-      )}
+      {enlargedImage && <ImageModal imageUrl={enlargedImage} onClose={() => setEnlargedImage(null)} />}
       {showDeleteChatModal && selectedChat && (
         <DeleteChatModal
           chatId={selectedChat}
@@ -753,15 +775,15 @@ export default function ChatPage() {
             try {
               await axios.delete(`${process.env.BASE_URL}api/chats/${selectedChat}/`, {
                 headers: {
-                  Authorization: `Bearer ${localStorage.getItem('fortify_access')}`
-                }
+                  Authorization: `Bearer ${localStorage.getItem("fortify_access")}`,
+                },
               })
               setSelectedChat(null)
               fetchChats()
               setShowDeleteChatModal(false)
             } catch (error) {
-              console.error('Error deleting chat:', error)
-              setError('Failed to delete the chat. Please try again.')
+              console.error("Error deleting chat:", error)
+              setError("Failed to delete the chat. Please try again.")
             }
           }}
         />
