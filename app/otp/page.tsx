@@ -1,22 +1,30 @@
-'use client'
+"use client"
 import { Analytics } from "@vercel/analytics/react"
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import Link from 'next/link'
-import Image from 'next/image'
-import axios from 'axios'
-import { useSearchParams } from 'next/navigation'
+import Link from "next/link"
+import Image from "next/image"
+import axios from "axios"
+import { useSearchParams } from "next/navigation"
 
 const VerificationCodeForm = () => {
-  const [code, setCode] = useState(['', '', '', '', '', ''])
-  const [error, setError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
+  const [code, setCode] = useState(["", "", "", "", "", ""])
+  const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
   const [isVerifying, setIsVerifying] = useState(false)
   const [isResending, setIsResending] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const searchParams = useSearchParams()
-  const username = searchParams.get('username')
+  const username = searchParams.get("username")
+  const otpParam = searchParams.get("otp")
+
+  useEffect(() => {
+    if (otpParam && otpParam.length === 6) {
+      const otpDigits = otpParam.split("")
+      setCode(otpDigits)
+    }
+  }, [otpParam])
 
   useEffect(() => {
     let timer: NodeJS.Timeout
@@ -31,12 +39,11 @@ const VerificationCodeForm = () => {
       const newCode = [...code]
       newCode[index] = value
       setCode(newCode)
-      
-      if (value !== '' && index < 5) {
+
+      if (value !== "" && index < 5) {
         const nextInput = document.getElementById(`code-${index + 1}`)
         nextInput?.focus()
-      } 
-      else if (value === '' && index > 0) {
+      } else if (value === "" && index > 0) {
         const prevInput = document.getElementById(`code-${index - 1}`)
         prevInput?.focus()
       }
@@ -44,47 +51,47 @@ const VerificationCodeForm = () => {
   }
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
-    const pastedValue = e.clipboardData.getData('text').slice(0, 6);
-    const newCode = [...code];
-    
+    const pastedValue = e.clipboardData.getData("text").slice(0, 6)
+    const newCode = [...code]
+
     for (let i = 0; i < pastedValue.length; i++) {
-      newCode[i] = pastedValue[i];
+      newCode[i] = pastedValue[i]
     }
 
-    setCode(newCode);
+    setCode(newCode)
 
     if (pastedValue.length && index < 5) {
-      const nextInput = document.getElementById(`code-${index + pastedValue.length}`);
-      nextInput?.focus();
+      const nextInput = document.getElementById(`code-${index + pastedValue.length}`)
+      nextInput?.focus()
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const verificationCode = code.join('')
+    const verificationCode = code.join("")
     setIsVerifying(true)
-    setError('')
-    setSuccessMessage('')
+    setError("")
+    setSuccessMessage("")
 
     try {
       const response = await axios.get(`${process.env.BASE_URL}api/accounts/login-verify/${verificationCode}`)
 
-      console.log('API Response:', response.data)
+      console.log("API Response:", response.data)
 
       if (response.status === 200) {
-        setSuccessMessage('Login successful!')
+        setSuccessMessage("Login successful!")
 
-        localStorage.setItem('fortify_access', response.data.access_token)
-        localStorage.setItem('fortify_refresh', response.data.refresh_token)
-        localStorage.setItem('fortify_username', response.data.username)
+        localStorage.setItem("fortify_access", response.data.access_token)
+        localStorage.setItem("fortify_refresh", response.data.refresh_token)
+        localStorage.setItem("fortify_username", response.data.username)
 
-        window.location.href = '/'
+        window.location.href = "/chat"
       } else {
-        setError(response.data.message || 'Something went wrong')
+        setError(response.data.message || "Something went wrong")
       }
     } catch (err) {
-      console.error('Error occurred:', err)
-      setError('An error occurred while processing your request.')
+      console.error("Error occurred:", err)
+      setError("An error occurred while processing your request.")
     } finally {
       setIsVerifying(false)
     }
@@ -92,42 +99,36 @@ const VerificationCodeForm = () => {
 
   const handleResendOTP = async () => {
     if (!username) {
-        setError('Username not found. Please try again.');
-        return;
+      setError("Username not found. Please try again.")
+      return
     }
 
-    setIsResending(true);
-    setError('');
-    setSuccessMessage('');
+    setIsResending(true)
+    setError("")
+    setSuccessMessage("")
 
     try {
-        const response = await axios.post(`${process.env.BASE_URL}api/accounts/resend-otp/`, {
-            username, // ارسال username به عنوان بخشی از بدنه درخواست
-        });
+      const response = await axios.post(`${process.env.BASE_URL}api/accounts/resend-otp/`, {
+        username, // ارسال username به عنوان بخشی از بدنه درخواست
+      })
 
-        if (response.status === 200) {
-            setSuccessMessage('OTP has been resent. Please check your email.');
-            setCountdown(60); // Start a 60-second countdown
-        }
+      if (response.status === 200) {
+        setSuccessMessage("OTP has been resent. Please check your email.")
+        setCountdown(60) // Start a 60-second countdown
+      }
     } catch (error) {
-        setError('There was an error resending the OTP. Please try again.');
+      setError("There was an error resending the OTP. Please try again.")
     } finally {
-        setIsResending(false);
+      setIsResending(false)
     }
-  };
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-purple-700 via-purple-600 to-purple-500">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <Image
-              src="/logo.png?height=40&width=100"
-              alt="Logo"
-              width={100}
-              height={40}
-              className="mx-auto"
-            />
+            <Image src="/logo.png?height=40&width=100" alt="Logo" width={100} height={40} className="mx-auto" />
           </Link>
         </div>
         <div className="bg-[#1F1D2B] rounded-3xl p-8 shadow-xl">
@@ -151,38 +152,26 @@ const VerificationCodeForm = () => {
                 />
               ))}
             </div>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full bg-purple-500 hover:bg-purple-600 text-white transition duration-300"
               disabled={isVerifying}
             >
-              {isVerifying ? 'Verifying...' : 'Verify'}
+              {isVerifying ? "Verifying..." : "Verify"}
             </Button>
           </form>
-          {successMessage && (
-            <div className="mt-4 text-center text-green-500">
-              {successMessage}
-            </div>
-          )}
-          {error && (
-            <div className="mt-4 text-center text-red-500">
-              {error}
-            </div>
-          )}
+          {successMessage && <div className="mt-4 text-center text-green-500">{successMessage}</div>}
+          {error && <div className="mt-4 text-center text-red-500">{error}</div>}
           <div className="mt-6 text-center">
             <p className="text-gray-400">
-              Didn't receive the code?{' '}
-              <Button 
-                variant="link" 
+              Didn't receive the code?{" "}
+              <Button
+                variant="link"
                 className="text-purple-400 hover:text-purple-300 p-0"
                 onClick={handleResendOTP}
                 disabled={isResending || countdown > 0}
               >
-                {countdown > 0
-                  ? `Resend in ${countdown}s`
-                  : isResending
-                  ? 'Resending...'
-                  : 'Resend'}
+                {countdown > 0 ? `Resend in ${countdown}s` : isResending ? "Resending..." : "Resend"}
               </Button>
             </p>
           </div>
@@ -199,3 +188,4 @@ export default function VerificationCodePage() {
     </Suspense>
   )
 }
+
