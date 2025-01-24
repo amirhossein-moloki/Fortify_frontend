@@ -30,7 +30,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({
     <div className="p-4">
       <div className="flex items-center space-x-3 mb-6 cursor-pointer" onClick={() => onProfileClick(userData.username)}>
         <img
-          src={`http://localhost:8000${userData.profile_picture?.startsWith('/') ? '' : '/'}${userData.profile_picture}`}
+          src={`${process.env.BASE_URL_MD}${userData.profile_picture?.startsWith('/') ? '' : '/'}${userData.profile_picture}`}
           alt={userData.username}
           onError={(e) => {
             e.currentTarget.src = '/placeholder.svg?height=64&width=64';
