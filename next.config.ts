@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     BASE_URL_MD: 'https://fortify-c8os.onrender.com/',
   },
   reactStrictMode: true,
+  swcMinify: true,
 };
 
 export default nextConfig;
