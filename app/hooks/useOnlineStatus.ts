@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 interface OnlineStatus {
   [username: string]: boolean;
 }
-
+const BASE_URL = 'wss://fortify-c8os.onrender.com/';
 export const useOnlineStatus = (usernames: string[], token: string): OnlineStatus => {
   const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>({});
 
@@ -11,7 +11,7 @@ export const useOnlineStatus = (usernames: string[], token: string): OnlineStatu
     const connections: { [username: string]: WebSocket } = {};
 
     usernames.forEach(username => {
-      const wsUrl = `ws://127.0.0.1:8000/ws/status/${username}/?token=${token}`;
+      const wsUrl = `${BASE_URL}ws/status/${username}/?token=${token}`;
 
 
       const ws = new WebSocket(wsUrl);

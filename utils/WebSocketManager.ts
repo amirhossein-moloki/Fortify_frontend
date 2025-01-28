@@ -17,6 +17,9 @@ type WebSocketMessage = {
   };
 };
 
+const BASE_URL = 'wss://fortify-c8os.onrender.com/';
+
+
 export class WebSocketManager {
   private socket: WebSocket | null = null;
   private chatId: number | null = null;
@@ -27,7 +30,7 @@ export class WebSocketManager {
   connect(chatId: number, token: string) {
     this.chatId = chatId;
     this.token = token;
-    this.socket = new WebSocket(`ws://localhost:8000/ws/chat/${chatId}/?token=${token}`);
+    this.socket = new WebSocket(`${BASE_URL}ws/chat/${chatId}/?token=${token}`);
 
     this.socket.onopen = () => {
       console.log('WebSocket Connected');
