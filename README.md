@@ -89,7 +89,7 @@ For any questions or issues, please open an issue on the [GitHub repository](htt
 
 This platform is designed for scalable messaging services with bidirectional communication.
 
-For more information about the backend, please refer to the [Fortify Backend project](https://github.com/amirhossein-moloki/fortify_backend-publish).
+For more information about the backend, please refer to the [Fortify Backend project](https://github.com/amirhossein-moloki/fortify_frontend-publish).
 
 ---
 
