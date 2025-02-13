@@ -20,7 +20,7 @@ Follow these steps to get started with the project:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/fortify_frontend.git
+git clone https://github.com/amirhossein-moloki/fortify_frontend-publish.git
 cd fortify_frontend
 ```
 
@@ -54,7 +54,7 @@ You can now open the project in your browser at [http://localhost:3000](http://l
 
 ## Backend Integration
 
-This frontend is designed to work with the **Fortify Backend**. If you want to use this frontend with your own instance of the backend, please refer to the [Fortify Backend Documentation](https://github.com/amirhossein-moloki/fortify_backend-publish/blob/publish/readme.md) for setup and installation instructions.
+This frontend is designed to work with the **Fortify Backend**. If you want to use this frontend with your own instance of the backend, please refer to the [Fortify Backend Documentation](https://github.com/amirhossein-moloki/fortify_frontend-publish/blob/publish/README.md) for setup and installation instructions.
 
 The backend provides essential APIs for user registration, login, and real-time messaging functionality through WebSocket.
 
