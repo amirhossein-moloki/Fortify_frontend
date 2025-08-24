@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { mockMyProfile, mockChatDetails, mockChatMembers } from './mockData';
 
 const API_BASE_URL = `${process.env.BASE_URL}api`;
 
@@ -28,6 +29,12 @@ export type PartialUserProfile = Partial<Omit<UserProfile['profile'], 'user'>> &
 };
 
 export const getUserProfile = async (username: string, token: string): Promise<UserProfile> => {
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  if (isDemoMode) {
+    console.log("--- DEMO MODE: Mocking getUserProfile ---");
+    return Promise.resolve(mockMyProfile);
+  }
+
   try {
     const response = await axios.get(`${API_BASE_URL}/accounts/profile/${username}/`, {
       headers: {
@@ -86,6 +93,12 @@ export interface ChatMember {
 }
 
 export const getChatMembers = async (chatId: number, token: string): Promise<ChatMember[]> => {
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  if (isDemoMode) {
+    console.log("--- DEMO MODE: Mocking getChatMembers ---");
+    // @ts-ignore
+    return Promise.resolve(mockChatDetails[chatId]?.participants || []);
+  }
   try {
     console.log('Sending request to get chat members:', `${API_BASE_URL}/chats/chat/${chatId}/alluser/`);
     const response = await axios.get(`${API_BASE_URL}/chats/chat/${chatId}/alluser/`, {
@@ -125,6 +138,11 @@ export interface ChatDetails {
 }
 
 export const getChatParticipants = async (chatId: number, token: string): Promise<ChatDetails> => {
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  if (isDemoMode) {
+    console.log("--- DEMO MODE: Mocking getChatParticipants ---");
+    return Promise.resolve(mockChatDetails[chatId]);
+  }
   try {
     console.log('Sending request to get chat participants:', `${API_BASE_URL}/chats/chat/${chatId}/participants/`);
     const response = await axios.get(`${API_BASE_URL}/chats/chat/${chatId}/participants/`, {
@@ -141,6 +159,11 @@ export const getChatParticipants = async (chatId: number, token: string): Promis
 };
 
 export const removeUsersFromChat = async (chatId: number, userIds: string[], token: string): Promise<{ success: boolean, removed_users: string[] }> => {
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  if (isDemoMode) {
+    console.log("--- DEMO MODE: Mocking removeUsersFromChat ---");
+    return Promise.resolve({ success: true, removed_users: userIds });
+  }
   try {
     const response = await axios.post(
       `${API_BASE_URL}/chats/chat/${chatId}/remove-users/`,
@@ -178,12 +201,22 @@ export const removeUsersFromChat = async (chatId: number, userIds: string[], tok
 };
 
 export const promoteToAdmin = async (chatId: number, userId: number, token: string): Promise<void> => {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    if (isDemoMode) {
+        console.log("--- DEMO MODE: Mocking promoteToAdmin ---");
+        return Promise.resolve();
+    }
   await axios.post(`${API_BASE_URL}/chats/chat/${chatId}/promote/`, { user_id: userId }, {
     headers: { Authorization: `Bearer ${token}` }
   });
 };
 
 export const demoteAdmin = async (chatId: number, userId: number, token: string): Promise<void> => {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    if (isDemoMode) {
+        console.log("--- DEMO MODE: Mocking demoteAdmin ---");
+        return Promise.resolve();
+    }
   await axios.post(`${API_BASE_URL}/chats/chat/${chatId}/demote/`, { user_id: userId }, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -191,6 +224,11 @@ export const demoteAdmin = async (chatId: number, userId: number, token: string)
 
 
 export async function updateChat(chatId: number, data: FormData, token: string): Promise<ChatDetails> {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    if (isDemoMode) {
+        console.log("--- DEMO MODE: Mocking updateChat ---");
+        return Promise.resolve(mockChatDetails[chatId]);
+    }
   try {
     const response = await axios.patch(
       `${API_BASE_URL}/chats/chat/${chatId}/update/`,
@@ -210,6 +248,11 @@ export async function updateChat(chatId: number, data: FormData, token: string):
 }
 
 export const leaveChat = async (chatId: number): Promise<void> => {
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  if (isDemoMode) {
+    console.log("--- DEMO MODE: Mocking leaveChat ---");
+    return Promise.resolve();
+  }
   const token = localStorage.getItem('fortify_access');
   if (!token) throw new Error('No authentication token found');
 

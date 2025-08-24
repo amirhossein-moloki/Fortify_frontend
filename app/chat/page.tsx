@@ -28,6 +28,7 @@ import { WebSocketManager } from "@/utils/WebSocketManager"
 import { MessageBubble } from "@/components/chat/MessageBubble"
 import { ProfileSection } from "@/components/profile/ProfileSection"
 import { getUserProfile, type UserProfile, getChatParticipants, type ChatDetails, leaveChat } from "@/utils/api"
+import { mockMyProfile, mockChats, mockMessages, mockChatDetails } from "@/utils/mockData"
 import Link from "next/link"
 import { ChatHeader } from "@/components/chat/ChatHeader"
 import { ChatInfo } from "@/components/chat/ChatInfo"
@@ -162,21 +163,39 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    const accessToken = localStorage.getItem("fortify_access")
-    setToken(accessToken)
-    const refreshToken = localStorage.getItem("fortify_refresh")
-    const username = localStorage.getItem("fortify_username")
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-    if (!accessToken || !refreshToken || !username) {
-      router.push("/login")
-      return
+    if (isDemoMode) {
+      // Bypass authentication and load mock data
+      localStorage.setItem('fortify_username', 'You');
+      localStorage.setItem('fortify_access', 'mock_access_token');
+      localStorage.setItem('fortify_refresh', 'mock_refresh_token');
+
+      const username = 'You';
+      const token = 'mock_access_token';
+
+      setToken(token);
+      setIsAuthenticated(true);
+      setUserProfile(mockMyProfile);
+      fetchChats(); // This will be mocked later
+    } else {
+      // Original authentication logic
+      const accessToken = localStorage.getItem("fortify_access")
+      setToken(accessToken)
+      const refreshTokenValue = localStorage.getItem("fortify_refresh")
+      const username = localStorage.getItem("fortify_username")
+
+      if (!accessToken || !refreshTokenValue || !username) {
+        router.push("/login")
+        return
+      }
+
+      setIsAuthenticated(true)
+      fetchChats()
+      fetchUserProfile(username, accessToken)
+
+      webSocketManagerRef.current = new WebSocketManager(handleWebSocketMessage)
     }
-
-    setIsAuthenticated(true)
-    fetchChats()
-    fetchUserProfile(username, accessToken)
-
-    webSocketManagerRef.current = new WebSocketManager(handleWebSocketMessage)
 
     const AudioContextClass = window.AudioContext || window.webkitAudioContext
     audioContextRef.current = new AudioContextClass()
@@ -358,6 +377,18 @@ export default function ChatPage() {
   }
 
   const fetchChats = async () => {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    setLoading(true);
+    setError(null);
+
+    if (isDemoMode) {
+      console.log("--- DEMO MODE: Fetching mock chats ---");
+      // @ts-ignore
+      setChats(mockChats);
+      setLoading(false);
+      return;
+    }
+
     let token = localStorage.getItem("fortify_access")
     if (!token) {
       await handleTokenRefresh()
@@ -367,9 +398,6 @@ export default function ChatPage() {
         return
       }
     }
-
-    setLoading(true)
-    setError(null)
 
     try {
       const response = await axios.get(`${process.env.BASE_URL}api/chats/`, {
@@ -406,8 +434,20 @@ export default function ChatPage() {
   }
 
   const handleChatSelect = async (chatId: number) => {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
     setSelectedChat(chatId)
     setMessages([])
+
+    if (isDemoMode) {
+        console.log(`--- DEMO MODE: Selecting chat ${chatId} ---`);
+        setSelectedChatDetails(mockChatDetails[chatId]);
+        setMessages(mockMessages[chatId] || []);
+        if (isMobileView) {
+            setSidebarOpen(false);
+        }
+        return;
+    }
+
     let token = localStorage.getItem("fortify_access")
     if (!token) {
       await handleTokenRefresh()
@@ -460,14 +500,33 @@ export default function ChatPage() {
   }
 
   const handleSendMessage = () => {
-    if (newMessage.trim() && webSocketManagerRef.current) {
-      if (editingMessageId) {
-        webSocketManagerRef.current.editMessage(editingMessageId, newMessage.trim())
-        setEditingMessageId(null)
-      } else {
-        webSocketManagerRef.current.sendMessage(newMessage.trim())
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    if (newMessage.trim()) {
+      if (isDemoMode) {
+        const myUsername = localStorage.getItem("fortify_username") || "You";
+        const newMessageObj = {
+          id: Date.now(),
+          content: newMessage.trim(),
+          sender: myUsername,
+          sender_profile_picture: mockMyProfile.profile.user.profile_picture,
+          sender_bio: mockMyProfile.profile.user.bio,
+          timestamp: new Date().toISOString(),
+          isOwn: true,
+          is_edited: false,
+          is_deleted: false,
+          read_by: [myUsername],
+        };
+        setMessages(prev => [...prev, newMessageObj]);
+        setNewMessage("");
+      } else if (webSocketManagerRef.current) {
+        if (editingMessageId) {
+          webSocketManagerRef.current.editMessage(editingMessageId, newMessage.trim())
+          setEditingMessageId(null)
+        } else {
+          webSocketManagerRef.current.sendMessage(newMessage.trim())
+        }
+        setNewMessage("")
       }
-      setNewMessage("")
     }
   }
 
@@ -648,6 +707,12 @@ export default function ChatPage() {
   }
 
   const handleLogout = () => {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    if (isDemoMode) {
+      // In demo mode, just "log out" to the login screen
+      router.push("/login");
+      return;
+    }
     localStorage.removeItem("fortify_access")
     localStorage.removeItem("fortify_refresh")
     localStorage.removeItem("fortify_username")
@@ -655,6 +720,11 @@ export default function ChatPage() {
   }
 
   const handleDeleteAccount = async () => {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    if (isDemoMode) {
+        alert("Account deletion is disabled in Demo Mode.");
+        return;
+    }
     if (window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
       let token = localStorage.getItem("fortify_access")
       if (!token) {
@@ -755,7 +825,12 @@ export default function ChatPage() {
                 <p>Start a new conversation by clicking the plus icon above!</p>
               </div>
             ) : (
-              chats.map((chat) => (
+              chats.map((chat) => {
+                const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+                const profilePic = chat.chat_type === "direct" ? chat.other_user.profile_picture : chat.group_image;
+                const imageUrl = isDemoMode ? profilePic : `${process.env.BASE_URL_MD}${ (profilePic || "").startsWith("/media") ? "" : "/"}${profilePic}`;
+
+                return (
                 <button
                   key={chat.id}
                   onClick={() => handleChatSelect(chat.id)}
@@ -768,9 +843,7 @@ export default function ChatPage() {
                     onClick={(e) => {
                       e.stopPropagation()
                       if (chat.chat_type !== "direct") {
-                        setEnlargedImage(
-                          `${process.env.BASE_URL_MD}${chat.group_image.startsWith("/media") ? "" : "/"}${chat.group_image}`,
-                        )
+                        setEnlargedImage(imageUrl)
                       } else {
                         router.push(`/profile/${chat.other_user.username}`)
                       }
@@ -778,7 +851,7 @@ export default function ChatPage() {
                     className="relative"
                   >
                     <img
-                      src={`${process.env.BASE_URL_MD}${((chat.chat_type === "direct" ? chat.other_user.profile_picture : chat.group_image) || "").startsWith("/media") ? "" : "/"}${chat.chat_type === "direct" ? chat.other_user.profile_picture : chat.group_image}`}
+                      src={imageUrl}
                       alt={chat.chat_type === "direct" ? chat.other_user.username : chat.group_name}
                       className="w-12 h-12 rounded-full cursor-pointer"
                     />
@@ -809,7 +882,8 @@ export default function ChatPage() {
                     </span>
                   )}
                 </button>
-              ))
+                )
+              })
             )}
           </div>
 
@@ -1011,6 +1085,14 @@ export default function ChatPage() {
           chatId={selectedChat}
           onClose={() => setShowDeleteChatModal(false)}
           onDelete={async () => {
+            const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+            if (isDemoMode) {
+                console.log("--- DEMO MODE: Deleting chat ---");
+                setChats(prev => prev.filter(c => c.id !== selectedChat));
+                setSelectedChat(null);
+                setShowDeleteChatModal(false);
+                return;
+            }
             try {
               await axios.delete(`${process.env.BASE_URL}api/chats/${selectedChat}/`, {
                 headers: {
