@@ -349,7 +349,7 @@ export default function ChatPage() {
       case "call_rejected":
         cleanupCall();
         break;
-      case "webrtc_offer":
+      case "webrtc_offer": {
         if (!webRTCManagerRef.current) {
           webRTCManagerRef.current = new WebRTCManager(
             (stream) => setRemoteStream(stream),
@@ -361,6 +361,7 @@ export default function ChatPage() {
         webSocketManagerRef.current?.sendAnswer(answer);
         setCallStatus('active');
         break;
+      }
       case "webrtc_answer":
         await webRTCManagerRef.current?.handleAnswer(data.answer);
         setCallStatus('active');
