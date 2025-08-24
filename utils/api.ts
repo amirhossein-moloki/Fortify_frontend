@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { mockMyProfile, mockChatDetails, mockChatMembers } from './mockData';
+import { mockMyProfile, mockChatDetails } from './mockData';
 
 const API_BASE_URL = `${process.env.BASE_URL}api`;
 
