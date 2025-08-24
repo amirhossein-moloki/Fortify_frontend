@@ -1,18 +1,22 @@
 'use client'
-import { Analytics } from "@vercel/analytics/react"
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Image, Check, Users, Calendar, Clock, X } from 'lucide-react'
+import { Image, Check, Users, Calendar, X, UserPlus, Search } from 'lucide-react'
+
+interface User {
+  id: number;
+  username: string;
+  profile_picture: string;
+}
 
 export default function CreateChatPage() {
   const router = useRouter()
   const [chatType, setChatType] = useState<string>('direct')
-  const [user2, setUser2] = useState<string>('')
   const [groupName, setGroupName] = useState<string>('')
   const [maxParticipants, setMaxParticipants] = useState<number>(50)
   const [groupImage, setGroupImage] = useState<File | null>(null)
@@ -20,6 +24,59 @@ export default function CreateChatPage() {
   const [success, setSuccess] = useState<boolean>(false)
   const [serverResponse, setServerResponse] = useState<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery) {
+        handleSearchUsers();
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleSearchUsers = async () => {
+    setIsSearching(true);
+    const token = localStorage.getItem('fortify_access');
+    if (!token) return;
+
+    try {
+      const response = await axios.get(`${process.env.BASE_URL}api/accounts/users/search/?search=${searchQuery}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setSearchResults(response.data);
+    } catch (err) {
+      console.error("Error searching users:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectUser = (user: User) => {
+    if (chatType === 'direct') {
+      setSelectedUsers([user]);
+      setSearchQuery('');
+      setSearchResults([]);
+    } else {
+      if (!selectedUsers.find(u => u.id === user.id)) {
+        setSelectedUsers([...selectedUsers, user]);
+      }
+      setSearchQuery('');
+      setSearchResults([]);
+    }
+  };
+
+  const handleRemoveUser = (userId: number) => {
+    setSelectedUsers(selectedUsers.filter(u => u.id !== userId));
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,32 +90,30 @@ export default function CreateChatPage() {
       return
     }
 
-    if (chatType === 'group' && maxParticipants < 2) {
-      setError('Group chats require at least 2 participants.')
-      return
+    if (chatType === 'direct' && selectedUsers.length !== 1) {
+      setError('Please select one user for a direct chat.');
+      return;
     }
 
-    if ((chatType === 'group' || chatType === 'channel') && !groupName) {
-      setError(`${chatType === 'group' ? 'Group' : 'Channel'} name is required.`)
-      return
-    }
-
-    if ((chatType === 'group' || chatType === 'channel') && !groupImage) {
-      setError(`${chatType === 'group' ? 'Group' : 'Channel'} image is required.`)
-      return
+    if (chatType === 'group' && selectedUsers.length < 1) {
+      setError('Please select at least one member for the group.');
+      return;
     }
 
     const formData = new FormData()
     formData.append('chat_type', chatType)
-    formData.append('user2', user2)
-    if (chatType === 'group' || chatType === 'channel') {
+
+    if (chatType === 'direct') {
+      formData.append('user2_id', selectedUsers[0].id.toString());
+    } else {
       formData.append('group_name', groupName)
+      formData.append('participant_ids', JSON.stringify(selectedUsers.map(u => u.id)))
       if (groupImage) {
         formData.append('group_image', groupImage)
       }
-    }
-    if (chatType === 'group') {
-      formData.append('max_participants', maxParticipants.toString())
+      if (chatType === 'group') {
+        formData.append('max_participants', maxParticipants.toString())
+      }
     }
 
     try {
@@ -88,13 +143,14 @@ export default function CreateChatPage() {
 
   const handleReset = () => {
     setChatType('direct')
-    setUser2('')
     setGroupName('')
     setMaxParticipants(50)
     setGroupImage(null)
     setError(null)
     setSuccess(false)
     setServerResponse(null)
+    setSelectedUsers([]);
+    setSearchQuery('');
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +164,7 @@ export default function CreateChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1F1D2B] flex items-center justify-center relative">
+    <div className="min-h-screen bg-[#1F1D2B] flex items-center justify-center relative p-4">
       <Button
         onClick={handleCancel}
         className="absolute top-4 right-4 bg-red-500 hover:bg-red-600"
@@ -118,42 +174,9 @@ export default function CreateChatPage() {
       </Button>
       <div className="bg-[#2D2A3D] p-8 rounded-lg shadow-lg w-full max-w-md">
         <h1 className="text-2xl font-bold text-white mb-6">Create New Chat</h1>
-        {success && serverResponse && (
+        {success && serverResponse ? (
           <div className="bg-green-500 text-white p-6 rounded-md mb-6">
-            <div className="flex items-center justify-center mb-4">
-              <Check className="w-12 h-12 text-white bg-green-600 rounded-full p-2" />
-            </div>
             <h2 className="text-2xl font-bold text-center mb-4">Successful!</h2>
-            <div className="space-y-4">
-              <div className="bg-green-600 p-4 rounded-md">
-                <h3 className="text-lg font-semibold mb-2">Chat Details</h3>
-                <p><strong>Name:</strong> {serverResponse.group_name || 'Direct Chat'}</p>
-                <p><strong>Type:</strong> {serverResponse.chat_type}</p>
-                <p><strong>ID:</strong> {serverResponse.id}</p>
-              </div>
-              <div className="bg-green-600 p-4 rounded-md">
-                <h3 className="text-lg font-semibold mb-2">Participants</h3>
-                <ul className="list-disc list-inside">
-                  {serverResponse.participants.map((participant: any) => (
-                    <li key={participant.id}>{participant.username}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="bg-green-600 p-4 rounded-md">
-                <h3 className="text-lg font-semibold mb-2">Admin</h3>
-                <p>{serverResponse.group_admin?.username}</p>
-              </div>
-              <div className="bg-green-600 p-4 rounded-md flex items-center space-x-2">
-                <Calendar className="w-5 h-5" />
-                <p>Created: {new Date(serverResponse.created_at).toLocaleString()}</p>
-              </div>
-              {serverResponse.chat_type !== 'direct' && (
-                <div className="bg-green-600 p-4 rounded-md flex items-center space-x-2">
-                  <Users className="w-5 h-5" />
-                  <p>Max Participants: {serverResponse.max_participants}</p>
-                </div>
-              )}
-            </div>
             <div className="mt-6 flex space-x-4">
               <Button onClick={() => router.push('/chat')} className="flex-1 bg-blue-600 hover:bg-blue-700">
                 Go to Chats
@@ -163,15 +186,15 @@ export default function CreateChatPage() {
               </Button>
             </div>
           </div>
-        )}
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="chat-type" className="text-white">Chat Type</Label>
-            <Select onValueChange={(value) => setChatType(value)} defaultValue={chatType}>
+            <Select onValueChange={(value) => { setChatType(value); setSelectedUsers([]); }} defaultValue={chatType}>
               <SelectTrigger className="w-full bg-[#1F1D2B] text-white">
                 <SelectValue placeholder="Select chat type" />
               </SelectTrigger>
-              <SelectContent className="w-full">
+              <SelectContent>
                 <SelectItem value="direct">Direct</SelectItem>
                 <SelectItem value="group">Group</SelectItem>
                 <SelectItem value="channel">Channel</SelectItem>
@@ -179,16 +202,44 @@ export default function CreateChatPage() {
             </Select>
           </div>
 
-          <div>
-            <Label htmlFor="user2" className="text-white">User 2 Username</Label>
-            <Input
-              id="user2"
-              value={user2}
-              onChange={(e) => setUser2(e.target.value)}
-              className="w-full bg-[#1F1D2B] text-white"
-              placeholder="Enter username"
-            />
+          <div className="relative">
+            <Label htmlFor="user-search" className="text-white">
+              {chatType === 'direct' ? 'Search for a user' : 'Add members'}
+            </Label>
+            <div className="flex items-center">
+              <Search className="absolute left-3 w-5 h-5 text-gray-400" />
+              <Input
+                id="user-search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#1F1D2B] text-white pl-10"
+                placeholder="Search by username or email..."
+              />
+            </div>
+            {isSearching && <p className="text-gray-400">Searching...</p>}
+            {searchResults.length > 0 && (
+              <ul className="absolute z-10 w-full bg-[#1F1D2B] border border-gray-700 rounded-md mt-1 max-h-40 overflow-y-auto">
+                {searchResults.map(user => (
+                  <li key={user.id} onClick={() => handleSelectUser(user)} className="p-2 hover:bg-purple-600 cursor-pointer flex items-center space-x-2">
+                    <img src={user.profile_picture} alt={user.username} className="w-8 h-8 rounded-full" />
+                    <span>{user.username}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
+
+          <div className="flex flex-wrap gap-2">
+            {selectedUsers.map(user => (
+              <div key={user.id} className="bg-purple-600 text-white px-3 py-1 rounded-full flex items-center space-x-2">
+                <span>{user.username}</span>
+                <button onClick={() => handleRemoveUser(user.id)}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+
 
           {(chatType === 'group' || chatType === 'channel') && (
             <>
@@ -200,6 +251,7 @@ export default function CreateChatPage() {
                   onChange={(e) => setGroupName(e.target.value)}
                   className="w-full bg-[#1F1D2B] text-white"
                   placeholder={`Enter ${chatType === 'group' ? 'group' : 'channel'} name`}
+                  required
                 />
               </div>
               <div>
@@ -241,18 +293,17 @@ export default function CreateChatPage() {
                 placeholder="Enter max participants"
                 min={2}
               />
-              <p className="text-sm text-gray-400 mt-1">Minimum 2 participants required</p>
             </div>
           )}
 
-          {error && <p className="text-red-500">{error}</p>}
+          {error && <p className="text-red-500 mt-2">{error}</p>}
 
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700">
             Create Chat
           </Button>
         </form>
+        )}
       </div>
     </div>
   )
 }
-

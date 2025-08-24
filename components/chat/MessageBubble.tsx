@@ -1,9 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Edit, Trash2, Copy, Check } from 'lucide-react'
+import { Edit, Trash2, Copy, Check, Smile, Bookmark } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
+
+interface Reaction {
+  emoji: string;
+  count: number;
+  by_user: boolean;
+}
 
 interface MessageProps {
   id: number
@@ -15,8 +21,11 @@ interface MessageProps {
   read: boolean
   is_edited: boolean
   is_deleted: boolean
+  reactions?: Reaction[];
   onEdit: (content: string) => void
   onDelete: () => void
+  onReact: (emoji: string) => void
+  onPin: () => void;
 }
 
 export function MessageBubble({
@@ -29,8 +38,11 @@ export function MessageBubble({
   read,
   is_edited,
   is_deleted,
+  reactions = [],
   onEdit,
-  onDelete
+  onDelete,
+  onReact,
+  onPin
 }: MessageProps) {
   const [isLongPress, setIsLongPress] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -65,6 +77,11 @@ export function MessageBubble({
     }, 300) // Match this with the animation duration
   }
 
+  const handlePin = () => {
+    onPin();
+    setIsLongPress(false);
+  }
+
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
@@ -96,7 +113,7 @@ export function MessageBubble({
             />
           </Link>
           <div
-            className={`max-w-[70%] rounded-lg p-3 ${
+            className={`max-w-[70%] rounded-lg p-3 relative ${
               isOwn
                 ? 'bg-purple-600 text-white'
                 : 'bg-[#2D2A3D] text-white'
@@ -123,10 +140,26 @@ export function MessageBubble({
                 </span>
               )}
             </div>
+            {reactions.length > 0 && (
+              <div className="absolute -bottom-4 right-2 flex space-x-1">
+                {reactions.map((reaction, index) => (
+                  <div key={index} className={`px-2 py-1 rounded-full text-xs flex items-center ${ reaction.by_user ? 'bg-purple-500 text-white' : 'bg-gray-600 text-gray-200'}`}>
+                    {reaction.emoji}
+                    <span className="ml-1 font-bold">{reaction.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           {isLongPress && (
             <div className="absolute top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-              <div className="flex space-x-4">
+              <div className="flex space-x-2">
+                <button onClick={() => onReact('👍')} className="p-2 bg-gray-500 rounded-full text-white hover:bg-gray-600">
+                  <Smile className="w-5 h-5" />
+                </button>
+                <button onClick={handlePin} className="p-2 bg-yellow-500 rounded-full text-white hover:bg-yellow-600">
+                  <Bookmark className="w-5 h-5" />
+                </button>
                 <button onClick={handleCopy} className="p-2 bg-gray-500 rounded-full text-white hover:bg-gray-600">
                   <Copy className="w-5 h-5" />
                 </button>

@@ -44,7 +44,7 @@ export const getUserProfile = async (username: string, token: string): Promise<U
 export const updateUserProfile = async (updatedData: PartialUserProfile, token: string): Promise<UserProfile> => {
   try {
     const formData = new FormData();
-    
+
     if (updatedData.user) {
       Object.entries(updatedData.user).forEach(([key, value]) => {
         if (value !== undefined) {
@@ -52,13 +52,13 @@ export const updateUserProfile = async (updatedData: PartialUserProfile, token: 
         }
       });
     }
-    
+
     Object.entries(updatedData).forEach(([key, value]) => {
       if (key !== 'user' && key !== 'profile_picture' && value !== undefined) {
         formData.append(key, String(value));
       }
     });
-    
+
     if (updatedData.profile_picture) {
       formData.append('profile_picture', updatedData.profile_picture);
     }
@@ -140,11 +140,11 @@ export const getChatParticipants = async (chatId: number, token: string): Promis
   }
 };
 
-export const removeUsersFromChat = async (chatId: number, usernames: string[], token: string): Promise<{ success: boolean, removed_users: string[] }> => {
+export const removeUsersFromChat = async (chatId: number, userIds: string[], token: string): Promise<{ success: boolean, removed_users: string[] }> => {
   try {
     const response = await axios.post(
-      `${API_BASE_URL}/chats/chat/${chatId}/remove-users/`, 
-      { usernames },
+      `${API_BASE_URL}/chats/chat/${chatId}/remove-users/`,
+      { user_ids: userIds },
       {
         headers: {
           'Content-Type': 'application/json',
@@ -176,6 +176,19 @@ export const removeUsersFromChat = async (chatId: number, usernames: string[], t
     throw error;
   }
 };
+
+export const promoteToAdmin = async (chatId: number, userId: number, token: string): Promise<void> => {
+  await axios.post(`${API_BASE_URL}/chats/chat/${chatId}/promote/`, { user_id: userId }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+export const demoteAdmin = async (chatId: number, userId: number, token: string): Promise<void> => {
+  await axios.post(`${API_BASE_URL}/chats/chat/${chatId}/demote/`, { user_id: userId }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
 
 export async function updateChat(chatId: number, data: FormData, token: string): Promise<ChatDetails> {
   try {
@@ -219,4 +232,3 @@ export const leaveChat = async (chatId: number): Promise<void> => {
     throw error;
   }
 };
-

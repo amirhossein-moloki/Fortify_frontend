@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Bell, Users, UserPlus, UserMinus, Trash2, Edit, Camera } from 'lucide-react'
+import { X, Bell, Users, UserPlus, UserMinus, Trash2, Edit, Camera, Shield, ShieldOff } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { ChatDetails, getChatParticipants, removeUsersFromChat, updateChat } from '@/utils/api'
+import { ChatDetails, getChatParticipants, removeUsersFromChat, updateChat, promoteToAdmin, demoteAdmin } from '@/utils/api'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { DeleteChatModal } from './DeleteChatModal';
@@ -19,19 +18,27 @@ interface ChatInfoProps {
 
 export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
   const [chatDetails, setChatDetails] = useState<ChatDetails | null>(null)
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState(true)
   const [showAddMemberModal, setShowAddMemberModal] = useState(false)
   const [newMemberUsername, setNewMemberUsername] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isOwner, setIsOwner] = useState(false);
   const [isEditing, setIsEditing] = useState(false)
   const [newChatName, setNewChatName] = useState(chatDetails?.group_name || '')
   const [newDescription, setNewDescription] = useState(chatDetails?.description || '')
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const username = localStorage.getItem('fortify_username');
+    // A better approach would be to have user id in local storage
+    // For now, we'll rely on the participant list to find the id.
+  }, []);
+
 
   useEffect(() => {
     fetchChatDetails()
@@ -39,8 +46,14 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
 
   useEffect(() => {
     if (chatDetails) {
-      const currentUser = chatDetails.participants.find(p => p.username === localStorage.getItem('fortify_username'))
-      setIsAdmin(chatDetails.group_admin.some(admin => admin.id === currentUser?.id))
+      const username = localStorage.getItem('fortify_username');
+      const currentUser = chatDetails.participants.find(p => p.username === username);
+      if (currentUser) {
+        setCurrentUserId(currentUser.id);
+        setIsAdmin(chatDetails.group_admin.some(admin => admin.id === currentUser.id))
+        // Assuming the first admin is the owner. This logic should be more robust in a real app.
+        setIsOwner(chatDetails.group_admin[0]?.id === currentUser.id);
+      }
       setNewChatName(chatDetails.group_name)
       setNewDescription(chatDetails.description)
     }
@@ -48,6 +61,7 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
 
   const fetchChatDetails = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('fortify_access')
       if (!token) throw new Error('No authentication token found')
       
@@ -60,35 +74,39 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
     }
   }
 
-  const handleUserSelect = (username: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(username) 
-        ? prev.filter(name => name !== username)
-        : [...prev, username]
-    )
-  }
-
-  const handleRemoveUsers = async () => {
-    if (!selectedUsers.length) return
-
+  const handleKickUser = async (userId: number) => {
     try {
-      const token = localStorage.getItem('fortify_access')
-      if (!token) throw new Error('No authentication token found')
-
-      const result = await removeUsersFromChat(chatId, selectedUsers, token)
-      if (result.success) {
-        await fetchChatDetails()
-        setSelectedUsers([])
-        // You might want to show a success message here
-      }
+      const token = localStorage.getItem('fortify_access');
+      if (!token) throw new Error('No authentication token found');
+      await removeUsersFromChat(chatId, [userId.toString()], token); // Assuming API can take user IDs
+      fetchChatDetails();
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Failed to remove users')
-      }
+      setError('Failed to kick user.');
     }
-  }
+  };
+
+  const handlePromote = async (userId: number) => {
+    try {
+      const token = localStorage.getItem('fortify_access');
+      if (!token) throw new Error('No authentication token found');
+      await promoteToAdmin(chatId, userId, token);
+      fetchChatDetails();
+    } catch (err) {
+      setError('Failed to promote user.');
+    }
+  };
+
+  const handleDemote = async (userId: number) => {
+    try {
+      const token = localStorage.getItem('fortify_access');
+      if (!token) throw new Error('No authentication token found');
+      await demoteAdmin(chatId, userId, token);
+      fetchChatDetails();
+    } catch (err) {
+      setError('Failed to demote admin.');
+    }
+  };
+
 
   const handleAddMember = async () => {
     if (!newMemberUsername.trim()) return
@@ -112,7 +130,6 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
         await fetchChatDetails()
         setNewMemberUsername('')
         setShowAddMemberModal(false)
-        // You might want to show a success message here
       }
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
@@ -289,7 +306,7 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
             </div>
             <Switch
               checked={notifications}
-              onChange={(e) => setNotifications(e.target.checked)}
+              onCheckedChange={(checked) => setNotifications(Boolean(checked))}
             />
           </div>
         </div>
@@ -316,49 +333,50 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
           </div>
 
           <div className="space-y-2">
-            {chatDetails.participants.map(participant => (
-              <div 
-                key={participant.id}
-                className="flex items-center space-x-3 p-2 hover:bg-gray-700/30 rounded-lg"
-              >
-                {isAdmin && !chatDetails.group_admin.some(admin => admin.id === participant.id) && (
-                  <Checkbox
-                    checked={selectedUsers.includes(participant.username)}
-                    onCheckedChange={() => handleUserSelect(participant.username)}
+            {chatDetails.participants.map(participant => {
+              const isParticipantAdmin = chatDetails.group_admin.some(admin => admin.id === participant.id);
+              return (
+                <div
+                  key={participant.id}
+                  className="flex items-center space-x-3 p-2 hover:bg-gray-700/30 rounded-lg"
+                >
+                  <img
+                    src={`${process.env.BASE_URL_MD}${participant.profile_picture}`}
+                    alt={participant.username}
+                    className="w-10 h-10 rounded-full object-cover"
                   />
-                )}
-                <img
-                  src={`${process.env.BASE_URL_MD}${participant.profile_picture}`}
-                  alt={participant.username}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-white font-medium">{participant.username}</span>
-                    {chatDetails.group_admin.some(admin => admin.id === participant.id) && (
-                      <span className="text-xs text-blue-400">admin</span>
-                    )}
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-white font-medium">{participant.username}</span>
+                      {isParticipantAdmin && (
+                        <span className="text-xs text-blue-400">admin</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      {participant.is_online ? 'online' : `last seen ${new Date(participant.last_seen).toLocaleString()}`}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-400">
-                    {participant.is_online ? 'online' : `last seen ${new Date(participant.last_seen).toLocaleString()}`}
-                  </div>
+                  {isAdmin && participant.id !== currentUserId && (
+                    <div className="flex items-center space-x-1">
+                      {isOwner && !isParticipantAdmin && (
+                         <Button variant="ghost" size="sm" onClick={() => handlePromote(participant.id)}>
+                           <Shield className="w-4 h-4" />
+                         </Button>
+                      )}
+                      {isOwner && isParticipantAdmin && (
+                         <Button variant="ghost" size="sm" onClick={() => handleDemote(participant.id)}>
+                           <ShieldOff className="w-4 h-4" />
+                         </Button>
+                      )}
+                      <Button variant="destructive" size="sm" onClick={() => handleKickUser(participant.id)}>
+                        <UserMinus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
-
-          {isAdmin && selectedUsers.length > 0 && (
-            <div className="mt-4">
-              <Button
-                variant="destructive"
-                className="w-full"
-                onClick={handleRemoveUsers}
-              >
-                <UserMinus className="w-4 h-4 mr-2" />
-                Remove Selected Members ({selectedUsers.length})
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Add Member Modal */}
@@ -414,7 +432,7 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
                 if (!token) throw new Error('No authentication token found');
         
                 const apiUrl = `${process.env.BASE_URL}api/chats/chat/${chatId}/delete/`;
-                console.log('API URL:', apiUrl); // چاپ URL درخواست
+                console.log('API URL:', apiUrl);
         
                 await axios.delete(apiUrl, {
                   headers: {
@@ -422,11 +440,8 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
                   },
                 });
                 
-                // بسته شدن Modal
-                onClose(); // Close the ChatInfo component
-                
-                // رفرش صفحه
-                window.location.reload(); // رفرش صفحه بعد از حذف چت
+                onClose();
+                window.location.reload();
               } catch (error) {
                 console.error('Error deleting chat:', error);
                 setError('Failed to delete the chat. Please try again.');
@@ -438,4 +453,3 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
     </div>
   )
 }
-

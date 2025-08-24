@@ -1,13 +1,19 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { ArrowLeft, MoreVertical, LogOut } from 'lucide-react'
+import { ArrowLeft, MoreVertical, LogOut, Phone, Video } from 'lucide-react'
 import Link from 'next/link'
 import { ChatInfo } from './ChatInfo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import axios from 'axios'
 import { ChatDetails } from '@/utils/api';
+import { PinnedMessage } from './PinnedMessage';
+
+interface PinnedMessageData {
+  id: number;
+  content: string;
+}
 
 interface ChatHeaderProps {
   chatId: number;
@@ -18,10 +24,13 @@ interface ChatHeaderProps {
   profilePicture: string;
   isAdmin: boolean;
   isMobileView?: boolean;
+  pinnedMessage?: PinnedMessageData | null;
   onBackClick?: () => void;
   onChatUpdate: (updatedChat: ChatDetails) => void;
   onLeaveChat: () => void;
-  isOnline?: boolean;  // اضافه کردن isOnline
+  onUnpinMessage: (messageId: number) => void;
+  onStartCall: (type: 'audio' | 'video') => void;
+  isOnline?: boolean;
 }
 
 export function ChatHeader({
@@ -33,17 +42,19 @@ export function ChatHeader({
   profilePicture,
   isAdmin,
   isMobileView,
+  pinnedMessage,
   onBackClick,
   onChatUpdate,
   onLeaveChat,
-  isOnline  // دریافت isOnline از props
+  onUnpinMessage,
+  onStartCall,
+  isOnline
 }: ChatHeaderProps) {
   const [showInfo, setShowInfo] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Function to handle the profile picture URL
   const getProfilePictureUrl = (url: string | undefined) => {
-    if (!url) return '/placeholder.svg?height=40&width=40'; // Provide a default placeholder
+    if (!url) return '/placeholder.svg?height=40&width=40';
     if (url.startsWith('${process.env.BASE_URL_MD}')) {
       return url;
     } else if (url.startsWith('/media')) {
@@ -56,8 +67,14 @@ export function ChatHeader({
   const isDirectChat = chatType === 'direct';
 
   return (
-    <>
-      <div className="p-4 border-b border-gray-800">
+    <div className="border-b border-gray-800">
+      {pinnedMessage && (
+        <PinnedMessage
+          content={pinnedMessage.content}
+          onUnpin={() => onUnpinMessage(pinnedMessage.id)}
+        />
+      )}
+      <div className="p-4">
         <div className="flex items-center space-x-3">
           {isMobileView && (
             <button
@@ -82,27 +99,47 @@ export function ChatHeader({
             </div>
             <p className="text-gray-400 text-sm">
               {isDirectChat
-                ? (isOnline ? 'Online' : 'Offline')  // استفاده از isOnline
+                ? (isOnline ? 'Online' : 'Offline')
                 : `${memberCount} members`}
             </p>
           </div>
-          {!isDirectChat && (
-            <>
-              <button
-                onClick={onLeaveChat}
-                className="p-2 text-gray-400 hover:text-white"
-                title="Leave Chat"
-              >
-                <LogOut className="w-6 h-6" />
-              </button>
-              <button
-                onClick={() => setShowInfo(true)}
-                className="p-2 text-gray-400 hover:text-white"
-              >
-                <MoreVertical className="w-6 h-6" />
-              </button>
-            </>
-          )}
+          <div className="flex items-center space-x-2">
+            {isDirectChat && (
+              <>
+                <button
+                  onClick={() => onStartCall('audio')}
+                  className="p-2 text-gray-400 hover:text-white"
+                  title="Start Audio Call"
+                >
+                  <Phone className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => onStartCall('video')}
+                  className="p-2 text-gray-400 hover:text-white"
+                  title="Start Video Call"
+                >
+                  <Video className="w-6 h-6" />
+                </button>
+              </>
+            )}
+            {!isDirectChat && (
+              <>
+                <button
+                  onClick={onLeaveChat}
+                  className="p-2 text-gray-400 hover:text-white"
+                  title="Leave Chat"
+                >
+                  <LogOut className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => setShowInfo(true)}
+                  className="p-2 text-gray-400 hover:text-white"
+                >
+                  <MoreVertical className="w-6 h-6" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -112,6 +149,6 @@ export function ChatHeader({
           onClose={() => setShowInfo(false)}
         />
       )}
-    </>
+    </div>
   )
 }

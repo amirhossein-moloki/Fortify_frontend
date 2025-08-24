@@ -18,6 +18,8 @@ import {
   Moon,
   Trash,
   LogOut,
+  ListPlus,
+  Video,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -33,6 +35,10 @@ import { ImageModal } from "@/components/ui/ImageModal"
 import { DeleteChatModal } from "@/components/chat/DeleteChatModal"
 import { refreshToken } from "@/utils/auth"
 import { useOnlineStatus } from "@/app/hooks/useOnlineStatus"
+import { CreatePollModal } from "@/components/chat/CreatePollModal"
+import { Poll } from "@/components/chat/Poll"
+import { CallModal } from "@/components/chat/CallModal"
+import { WebRTCManager } from "@/utils/WebRTCManager"
 
 declare global {
   interface Window {
@@ -63,6 +69,25 @@ interface Chat {
   unread_count: number
   member_count: number
   is_admin: boolean
+  pinned_message?: Message | null;
+}
+
+interface Reaction {
+  emoji: string;
+  count: number;
+  by_user: boolean;
+}
+
+interface PollOption {
+  id: number;
+  text: string;
+  votes: number;
+}
+
+interface PollData {
+  id: number;
+  question: string;
+  options: PollOption[];
 }
 
 interface Message {
@@ -76,6 +101,8 @@ interface Message {
   is_edited: boolean
   is_deleted: boolean
   read_by: string[]
+  reactions?: Reaction[]
+  poll?: PollData
   file?: {
     file_name: string
     file_type: string
@@ -100,6 +127,8 @@ export default function ChatPage() {
   const [selectedChatDetails, setSelectedChatDetails] = useState<ChatDetails | null>(null)
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false)
+  const [showPollModal, setShowPollModal] = useState(false)
+  const [pinnedMessage, setPinnedMessage] = useState<Message | null>(null);
   const [usernames, setUsernames] = useState<string[]>([])
   const [token, setToken] = useState<string | null>(null)
   const onlineStatus = useOnlineStatus(usernames, token || "")
@@ -110,6 +139,27 @@ export default function ChatPage() {
   const receiveAudioBufferRef = useRef<AudioBuffer | null>(null)
   const editAudioBufferRef = useRef<AudioBuffer | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Call state
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [callStatus, setCallStatus] = useState<'incoming' | 'outgoing' | 'active' | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const webRTCManagerRef = useRef<WebRTCManager | null>(null);
+  const [incomingCallType, setIncomingCallType] = useState<'audio' | 'video' | null>(null);
+
+
+  const cleanupCall = () => {
+    webRTCManagerRef.current?.close();
+    webRTCManagerRef.current = null;
+    localStream?.getTracks().forEach(track => track.stop());
+    setLocalStream(null);
+    setRemoteStream(null);
+    setShowCallModal(false);
+    setCallStatus(null);
+  };
 
   useEffect(() => {
     const accessToken = localStorage.getItem("fortify_access")
@@ -156,6 +206,7 @@ export default function ChatPage() {
 
     return () => {
       webSocketManagerRef.current?.disconnect()
+      cleanupCall();
       if (audioContextRef.current) {
         audioContextRef.current.close()
       }
@@ -169,6 +220,15 @@ export default function ChatPage() {
       .map((chat) => chat.other_user.username)
     setUsernames(directChatUsernames)
   }, [chats, token])
+
+  useEffect(() => {
+    if (selectedChat) {
+      const chat = chats.find(c => c.id === selectedChat);
+      if (chat) {
+        setPinnedMessage(chat.pinned_message || null);
+      }
+    }
+  }, [selectedChat, chats]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -187,9 +247,10 @@ export default function ChatPage() {
     }
   }
 
-  const handleWebSocketMessage = (data: any) => {
+  const handleWebSocketMessage = async (data: any) => {
     switch (data.action) {
       case "send":
+      case "new_poll":
         setMessages((prevMessages) => {
           if (prevMessages.some((msg) => msg.id === data.message_id)) {
             return prevMessages
@@ -212,6 +273,8 @@ export default function ChatPage() {
               is_edited: data.is_edited,
               is_deleted: data.is_deleted,
               read_by: data.read_by,
+              reactions: data.reactions || [],
+              poll: data.poll || null,
               file: data.file,
             },
           ]
@@ -237,6 +300,58 @@ export default function ChatPage() {
           prevMessages.map((msg) => (msg.id === data.message_id ? { ...msg, read_by: data.read_by } : msg)),
         )
         break
+      case "react":
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === data.message_id ? { ...msg, reactions: data.reactions } : msg
+          )
+        );
+        break;
+      case "poll_update":
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.poll && msg.poll.id === data.poll.id ? { ...msg, poll: data.poll } : msg
+          )
+        );
+        break;
+      case "pin_message":
+        setPinnedMessage(data.message);
+        setChats(prev => prev.map(c => c.id === selectedChat ? {...c, pinned_message: data.message} : c));
+        break;
+      case "unpin_message":
+        setPinnedMessage(null);
+        setChats(prev => prev.map(c => c.id === selectedChat ? {...c, pinned_message: null} : c));
+        break;
+      case "incoming_call":
+        setCallStatus('incoming');
+        setIncomingCallType(data.call_type);
+        setShowCallModal(true);
+        break;
+      case "call_rejected":
+        cleanupCall();
+        break;
+      case "webrtc_offer":
+        if (!webRTCManagerRef.current) {
+          webRTCManagerRef.current = new WebRTCManager(
+            (stream) => setRemoteStream(stream),
+            (candidate) => webSocketManagerRef.current?.sendIceCandidate(candidate)
+          );
+        }
+        await webRTCManagerRef.current.handleOffer(data.offer);
+        const answer = await webRTCManagerRef.current.createAnswer();
+        webSocketManagerRef.current?.sendAnswer(answer);
+        setCallStatus('active');
+        break;
+      case "webrtc_answer":
+        await webRTCManagerRef.current?.handleAnswer(data.answer);
+        setCallStatus('active');
+        break;
+      case "webrtc_ice_candidate":
+        await webRTCManagerRef.current?.handleIceCandidate(data.candidate);
+        break;
+      case "end_call":
+        cleanupCall();
+        break;
       default:
         console.error("Unknown action:", data.action)
     }
@@ -356,6 +471,30 @@ export default function ChatPage() {
     }
   }
 
+  const handleCreatePoll = (question: string, options: string[]) => {
+    if (webSocketManagerRef.current) {
+      webSocketManagerRef.current.createPoll(question, options);
+    }
+  };
+
+  const handleVote = (pollId: number, optionId: number) => {
+    if (webSocketManagerRef.current) {
+      webSocketManagerRef.current.votePoll(pollId, optionId);
+    }
+  };
+
+  const handlePinMessage = (messageId: number) => {
+    if (webSocketManagerRef.current) {
+      webSocketManagerRef.current.pinMessage(messageId);
+    }
+  };
+
+  const handleUnpinMessage = (messageId: number) => {
+    if (webSocketManagerRef.current) {
+      webSocketManagerRef.current.unpinMessage(messageId);
+    }
+  };
+
   const handleStartEdit = (messageId: number, content: string) => {
     setEditingMessageId(messageId)
     setNewMessage(content)
@@ -366,6 +505,65 @@ export default function ChatPage() {
       webSocketManagerRef.current.deleteMessage(messageId)
     }
   }
+
+  const handleReact = (messageId: number, emoji: string) => {
+    if (webSocketManagerRef.current) {
+      webSocketManagerRef.current.sendReaction(messageId, emoji)
+    }
+  };
+
+  const handleStartCall = async (type: 'audio' | 'video') => {
+    webRTCManagerRef.current = new WebRTCManager(
+      (stream) => setRemoteStream(stream),
+      (candidate) => webSocketManagerRef.current?.sendIceCandidate(candidate)
+    );
+    const stream = await webRTCManagerRef.current.getLocalStream(type === 'video', true);
+    setLocalStream(stream);
+    setIsVideoEnabled(type === 'video');
+    setCallStatus('outgoing');
+    setShowCallModal(true);
+    webSocketManagerRef.current?.startCall(type);
+    const offer = await webRTCManagerRef.current.createOffer();
+    webSocketManagerRef.current?.sendOffer(offer);
+  };
+
+  const handleAcceptCall = async () => {
+    if (!webRTCManagerRef.current) {
+      webRTCManagerRef.current = new WebRTCManager(
+        (stream) => setRemoteStream(stream),
+        (candidate) => webSocketManagerRef.current?.sendIceCandidate(candidate)
+      );
+    }
+    const stream = await webRTCManagerRef.current.getLocalStream(incomingCallType === 'video', true);
+    setLocalStream(stream);
+    setIsVideoEnabled(incomingCallType === 'video');
+    setCallStatus('active');
+  };
+
+  const handleRejectCall = () => {
+    webSocketManagerRef.current?.rejectCall();
+    cleanupCall();
+  };
+
+  const handleEndCall = () => {
+    webSocketManagerRef.current?.endCall();
+    cleanupCall();
+  };
+
+  const handleToggleMute = () => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleToggleVideo = () => {
+    if (localStream) {
+      localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+      setIsVideoEnabled(!isVideoEnabled);
+    }
+  };
+
 
   useEffect(() => {
     if (selectedChat && webSocketManagerRef.current) {
@@ -690,9 +888,12 @@ export default function ChatPage() {
                   selectedChatDetails.group_admin?.some((admin) => admin.id === userProfile?.profile.user.id) || false
                 }
                 isMobileView={isMobileView}
+                pinnedMessage={pinnedMessage}
                 onBackClick={() => setSelectedChat(null)}
                 onChatUpdate={handleChatUpdate}
                 onLeaveChat={handleLeaveChat}
+                onUnpinMessage={handleUnpinMessage}
+                onStartCall={handleStartCall}
                 isOnline={
                   selectedChatDetails.chat_type === "direct"
                     ? onlineStatus[selectedChatDetails.other_user?.username || ""]
@@ -702,22 +903,37 @@ export default function ChatPage() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((message) => (
-                  <MessageBubble
-                    key={message.id}
-                    id={message.id}
-                    content={message.content}
-                    sender={message.sender}
-                    sender_profile_picture={message.sender_profile_picture}
-                    timestamp={message.timestamp}
-                    isOwn={message.isOwn}
-                    read={message.read_by.includes(localStorage.getItem("fortify_username") || "")}
-                    is_edited={message.is_edited}
-                    is_deleted={message.is_deleted}
-                    onEdit={(newContent) => handleStartEdit(message.id, newContent)}
-                    onDelete={() => handleDeleteMessage(message.id)}
-                  />
-                ))}
+                {messages.map((message) => {
+                  if (message.poll) {
+                    return (
+                      <Poll
+                        key={message.id}
+                        question={message.poll.question}
+                        options={message.poll.options}
+                        onVote={(optionId) => handleVote(message.poll!.id, optionId)}
+                      />
+                    );
+                  }
+                  return (
+                    <MessageBubble
+                      key={message.id}
+                      id={message.id}
+                      content={message.content}
+                      sender={message.sender}
+                      sender_profile_picture={message.sender_profile_picture}
+                      timestamp={message.timestamp}
+                      isOwn={message.isOwn}
+                      read={message.read_by.includes(localStorage.getItem("fortify_username") || "")}
+                      is_edited={message.is_edited}
+                      is_deleted={message.is_deleted}
+                      reactions={message.reactions}
+                      onEdit={(newContent) => handleStartEdit(message.id, newContent)}
+                      onDelete={() => handleDeleteMessage(message.id)}
+                      onReact={(emoji) => handleReact(message.id, emoji)}
+                      onPin={() => handlePinMessage(message.id)}
+                    />
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -726,6 +942,9 @@ export default function ChatPage() {
                 <div className="flex items-center space-x-2">
                   <button className="p-2 text-gray-400 hover:text-white">
                     <Paperclip className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setShowPollModal(true)} className="p-2 text-gray-400 hover:text-white">
+                    <ListPlus className="w-5 h-5" />
                   </button>
                   <input
                     type="text"
@@ -763,6 +982,26 @@ export default function ChatPage() {
         </div>
       )}
 
+      {showPollModal && (
+        <CreatePollModal
+          onClose={() => setShowPollModal(false)}
+          onCreate={handleCreatePoll}
+        />
+      )}
+      {showCallModal && (
+        <CallModal
+          onClose={handleRejectCall}
+          onAccept={handleAcceptCall}
+          onReject={handleRejectCall}
+          onToggleMute={handleToggleMute}
+          onToggleVideo={handleToggleVideo}
+          isMuted={isMuted}
+          isVideoEnabled={isVideoEnabled}
+          callStatus={callStatus!}
+          remoteStream={remoteStream}
+          localStream={localStream}
+        />
+      )}
       {showChatInfo && selectedChatDetails && (
         <ChatInfo chatId={selectedChat!} onClose={() => setShowChatInfo(false)} />
       )}
@@ -791,4 +1030,3 @@ export default function ChatPage() {
     </div>
   )
 }
-

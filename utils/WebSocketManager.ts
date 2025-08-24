@@ -1,5 +1,5 @@
 type WebSocketMessage = {
-  action: 'send' | 'edit' | 'delete' | 'read';
+  action: 'send' | 'edit' | 'delete' | 'read' | 'react' | 'create_poll' | 'vote_poll' | 'pin_message' | 'unpin_message' | 'start_call' | 'webrtc_offer' | 'webrtc_answer' | 'webrtc_ice_candidate' | 'reject_call' | 'end_call';
   message_id?: number;
   message?: string;
   sender?: string;
@@ -10,6 +10,15 @@ type WebSocketMessage = {
   read_by?: string[];
   is_edited?: boolean;
   is_deleted?: boolean;
+  emoji?: string;
+  question?: string;
+  options?: string[];
+  poll_id?: number;
+  option_id?: number;
+  call_type?: 'audio' | 'video';
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidate;
   file?: {
     file_name: string;
     file_type: string;
@@ -25,7 +34,7 @@ export class WebSocketManager {
   private chatId: number | null = null;
   private token: string | null = null;
 
-  constructor(private onMessage: (data: WebSocketMessage) => void) {}
+  constructor(private onMessage: (data: any) => void) {}
 
   connect(chatId: number, token: string) {
     this.chatId = chatId;
@@ -37,7 +46,7 @@ export class WebSocketManager {
     };
 
     this.socket.onmessage = (event) => {
-      const data: WebSocketMessage = JSON.parse(event.data);
+      const data = JSON.parse(event.data);
       this.onMessage(data);
     };
 
@@ -73,7 +82,51 @@ export class WebSocketManager {
     this.sendAction('read', { message_id: messageId });
   }
 
-  private sendAction(action: 'send' | 'edit' | 'delete' | 'read', data: Partial<WebSocketMessage>) {
+  sendReaction(messageId: number, emoji: string) {
+    this.sendAction('react', { message_id: messageId, emoji: emoji });
+  }
+
+  createPoll(question: string, options: string[]) {
+    this.sendAction('create_poll', { question, options });
+  }
+
+  votePoll(pollId: number, optionId: number) {
+    this.sendAction('vote_poll', { poll_id: pollId, option_id: optionId });
+  }
+
+  pinMessage(messageId: number) {
+    this.sendAction('pin_message', { message_id: messageId });
+  }
+
+  unpinMessage(messageId: number) {
+    this.sendAction('unpin_message', { message_id: messageId });
+  }
+
+  startCall(type: 'audio' | 'video') {
+    this.sendAction('start_call', { call_type: type });
+  }
+
+  sendOffer(offer: RTCSessionDescriptionInit) {
+    this.sendAction('webrtc_offer', { offer });
+  }
+
+  sendAnswer(answer: RTCSessionDescriptionInit) {
+    this.sendAction('webrtc_answer', { answer });
+  }
+
+  sendIceCandidate(candidate: RTCIceCandidate) {
+    this.sendAction('webrtc_ice_candidate', { candidate });
+  }
+
+  rejectCall() {
+    this.sendAction('reject_call', {});
+  }
+
+  endCall() {
+    this.sendAction('end_call', {});
+  }
+
+  private sendAction(action: 'send' | 'edit' | 'delete' | 'read' | 'react' | 'create_poll' | 'vote_poll' | 'pin_message' | 'unpin_message' | 'start_call' | 'webrtc_offer' | 'webrtc_answer' | 'webrtc_ice_candidate' | 'reject_call' | 'end_call', data: Partial<WebSocketMessage>) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ action, ...data }));
     } else {
