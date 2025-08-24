@@ -306,7 +306,7 @@ export function ChatInfo({ chatId, onClose }: ChatInfoProps) {
             </div>
             <Switch
               checked={notifications}
-              onCheckedChange={(checked) => setNotifications(Boolean(checked))}
+              onChange={(e) => setNotifications(e.target.checked)}
             />
           </div>
         </div>
