@@ -11,7 +11,7 @@ const mockUsers: ChatParticipant[] = [
     id: 1,
     username: 'You',
     email: 'you@test.com',
-    profile_picture: 'https://i.pravatar.cc/150?u=you',
+    profile_picture: 'https://avatar.iran.liara.run/public/26',
     is_online: true,
     last_seen: new Date().toISOString(),
   },
@@ -19,7 +19,7 @@ const mockUsers: ChatParticipant[] = [
     id: 2,
     username: 'Alice',
     email: 'alice@test.com',
-    profile_picture: 'https://i.pravatar.cc/150?u=alice',
+    profile_picture: 'https://avatar.iran.liara.run/public/86',
     is_online: true,
     last_seen: new Date().toISOString(),
   },
@@ -27,7 +27,7 @@ const mockUsers: ChatParticipant[] = [
     id: 3,
     username: 'Bob',
     email: 'bob@test.com',
-    profile_picture: 'https://i.pravatar.cc/150?u=bob',
+    profile_picture: 'https://avatar.iran.liara.run/public/32',
     is_online: false,
     last_seen: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
   },
@@ -35,7 +35,7 @@ const mockUsers: ChatParticipant[] = [
     id: 4,
     username: 'Charlie',
     email: 'charlie@test.com',
-    profile_picture: 'https://i.pravatar.cc/150?u=charlie',
+    profile_picture: 'https://avatar.iran.liara.run/public/4',
     is_online: true,
     last_seen: new Date().toISOString(),
   },
@@ -43,7 +43,7 @@ const mockUsers: ChatParticipant[] = [
     id: 5,
     username: 'Diana',
     email: 'diana@test.com',
-    profile_picture: 'https://i.pravatar.cc/150?u=diana',
+    profile_picture: 'https://avatar.iran.liara.run/public/77',
     is_online: false,
     last_seen: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
   },
@@ -51,7 +51,7 @@ const mockUsers: ChatParticipant[] = [
     id: 6,
     username: 'Ethan',
     email: 'ethan@test.com',
-    profile_picture: 'https://i.pravatar.cc/150?u=ethan',
+    profile_picture: 'https://avatar.iran.liara.run/public/26',
     is_online: true,
     last_seen: new Date().toISOString(),
   }
@@ -67,7 +67,7 @@ export const mockMyProfile: UserProfile = {
       email: 'you@test.com',
       is_online: true,
       last_seen: new Date().toISOString(),
-      profile_picture: 'https://i.pravatar.cc/150?u=you',
+      profile_picture: 'https://avatar.iran.liara.run/public/26',
       bio: 'This is my awesome profile bio for the demo mode!',
     },
     date_of_birth: '1990-01-01',
@@ -101,9 +101,14 @@ export const mockMessages: { [chatId: number]: any[] } = {
     createMockMessage(2, mockUsers[0], 'I am good, thanks for asking! Just working on this cool messenger app.', new Date(now.getTime() - 60000 * 9), true),
     createMockMessage(3, mockUsers[1], 'Oh wow, that sounds amazing! Can you show me a screenshot?', new Date(now.getTime() - 60000 * 8), false),
     createMockMessage(4, mockUsers[0], 'Sure, here is one!', new Date(now.getTime() - 60000 * 7), true, {
-      file: { file_name: 'screenshot.jpg', file_type: 'image/jpeg', file_size: 123456 }
+      file: { file_name: 'screenshot.jpg', file_type: 'image/jpeg', file_size: 123456, url: 'https://cdn11.bigcommerce.com/s-tvu0xuc8/images/stencil/1280x1280/products/6723/27443/Boy_Scout_Purple_Rhino_Patrol_Patch_-_B57671__73955.1711481876.png?c=2' }
     }),
     createMockMessage(5, mockUsers[1], 'Looks fantastic! The UI is so clean.', new Date(now.getTime() - 60000 * 6), false),
+    createMockMessage(6, mockUsers[0], 'I also implemented voice messages. Check it out.', new Date(now.getTime() - 60000 * 5), true),
+    createMockMessage(7, mockUsers[0], '', new Date(now.getTime() - 60000 * 4), true, {
+      file: { file_name: 'voice_message.ogg', file_type: 'audio/ogg', file_size: 23456, duration: '0:12' }
+    }),
+    createMockMessage(8, mockUsers[1], 'That is so cool!', new Date(now.getTime() - 60000 * 3), false),
   ],
   102: [ // Chat with Bob
     createMockMessage(1, mockUsers[2], 'Can you send me the report?', new Date(now.getTime() - 86400000), false),

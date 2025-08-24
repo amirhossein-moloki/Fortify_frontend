@@ -40,6 +40,7 @@ import { CreatePollModal } from "@/components/chat/CreatePollModal"
 import { Poll } from "@/components/chat/Poll"
 import { CallModal } from "@/components/chat/CallModal"
 import { WebRTCManager } from "@/utils/WebRTCManager"
+import { VoiceMessage } from "@/components/chat/VoiceMessage"
 
 declare global {
   interface Window {
@@ -108,6 +109,8 @@ interface Message {
     file_name: string
     file_type: string
     file_size: number
+    url?: string
+    duration?: string
   }
 }
 
@@ -987,8 +990,45 @@ export default function ChatPage() {
                         options={message.poll.options}
                         onVote={(optionId) => handleVote(message.poll!.id, optionId)}
                       />
-                    );
+                    )
                   }
+
+                  if (message.file) {
+                    const isOwn = message.sender === localStorage.getItem("fortify_username")
+                    if (message.file.file_type.startsWith("image/")) {
+                      return (
+                        <div key={message.id} className={`flex items-start gap-2 mb-4 relative ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                           <img
+                            src={message.sender_profile_picture}
+                            alt={message.sender}
+                            className="w-8 h-8 rounded-full"
+                          />
+                          <div className={`max-w-[70%] rounded-lg p-3 relative ${ isOwn ? "bg-purple-600" : "bg-[#2D2A3D]" }`}>
+                            {!isOwn && (<div className="text-sm font-medium mb-1 text-purple-300">{message.sender}</div>)}
+                            <img src={message.file.url} alt={message.file.file_name} className="rounded-lg max-w-xs" />
+                            {message.content && <div className="mt-2">{message.content}</div>}
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (message.file.file_type.startsWith("audio/")) {
+                       return (
+                        <div key={message.id} className={`flex items-start gap-2 mb-4 relative ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                           <img
+                            src={message.sender_profile_picture}
+                            alt={message.sender}
+                            className="w-8 h-8 rounded-full"
+                          />
+                          <div className={`max-w-[70%] rounded-lg p-3 relative ${ isOwn ? "bg-purple-600 text-white" : "bg-[#2D2A3D] text-white" }`}>
+                             {!isOwn && (<div className="text-sm font-medium mb-1 text-purple-300">{message.sender}</div>)}
+                             <VoiceMessage duration={message.file.duration!} />
+                          </div>
+                        </div>
+                      )
+                    }
+                  }
+
+
                   return (
                     <MessageBubble
                       key={message.id}
@@ -1007,7 +1047,7 @@ export default function ChatPage() {
                       onReact={(emoji) => handleReact(message.id, emoji)}
                       onPin={() => handlePinMessage(message.id)}
                     />
-                  );
+                  )
                 })}
                 <div ref={messagesEndRef} />
               </div>
